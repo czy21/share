@@ -1,7 +1,6 @@
 import React from "react";
 import lodash from 'lodash'
 import * as antd from 'antd'
-import * as intl from 'react-intl'
 import styles from "./index.m.less";
 
 export interface FilterProp {
@@ -142,14 +141,14 @@ const Filter: React.FC<FilterProp> = (props: FilterProp) => {
                         clearTag()
                         clearCurrent()
                         props.onSearch(transformTagToQuery({}))
-                    }}>{<intl.FormattedMessage id={"common.filter.reset"} defaultMessage={""}/>}
+                    }}>重置
                     </antd.Button>
                     <antd.Button type={"primary"} onClick={() => {
                         if (validateTag()) {
                             clearCurrent()
                             props.onSearch(transformTagToQuery(tag))
                         }
-                    }}>{<intl.FormattedMessage id={"common.filter.search"} defaultMessage={""}/>}
+                    }}>搜索
                     </antd.Button>
                 </antd.Space>
             </antd.Col>
