@@ -36,7 +36,7 @@
   "publishConfig": {
     "registry": "http://nexus.cluster.com/repository/npm-hosted/"
   },
-  "module": "dist/esm/index.js",
+  "module": "dist/es/index.js",
   "files": [
     "dist"
   ],
