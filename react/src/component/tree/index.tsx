@@ -1,7 +1,7 @@
 import React from "react";
 import * as antd from 'antd'
 
-interface TreeProps {
+export interface TreeProps {
     value?: any[];
     onChange?: (value: any) => void;
 }
