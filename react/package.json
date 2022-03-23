@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "description": "",
   "scripts": {
-    "build": "rm -rf lib && rollup -c",
-    "watch": "rollup -cw",
+    "clean": "rm -rf lib",
+    "build": "yarn clean && rollup -c",
+    "watch": "yarn clean && rollup -cw",
     "deploy": "yarn build && npm publish"
   },
   "author": "",
