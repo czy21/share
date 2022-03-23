@@ -4,7 +4,6 @@
     "module": "esnext",
     "jsx": "react",
     "sourceMap": true,
-    "outDir": "dist",
     "strict": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
@@ -19,6 +18,7 @@
     "src/component/"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "lib"
   ]
 }

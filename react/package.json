@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "build": "rollup -c",
-    "deploy": "rm -rf dist && yarn build && npm publish"
+    "watch": "rollup -cw",
+    "deploy": "rm -rf lib && yarn build && npm publish"
   },
   "author": "",
   "license": "ISC",
@@ -32,14 +33,16 @@
   },
   "peerDependencies": {
     "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react-dom": "^17.0.2",
+    "antd": "^4.19.3"
   },
   "publishConfig": {
     "registry": "http://nexus.cluster.com/repository/npm-hosted/"
   },
-  "module": "dist/es/index.js",
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
   "files": [
-    "dist"
+    "lib"
   ],
-  "types": "dist/index.d.ts"
+  "types": "lib/index.d.ts"
 }

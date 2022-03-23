@@ -11,8 +11,13 @@ const packageJson = require('./package.json');
 export default [
     {
         input: 'src/component/index.ts',
-        external: ['react', 'antd'],
+        external: [...Object.keys(packageJson.peerDependencies || {})],
         output: [
+            {
+                file: packageJson.main,
+                format: 'cjs',
+                sourcemap: true
+            },
             {
                 file: packageJson.module,
                 format: 'esm',
@@ -29,8 +34,8 @@ export default [
         ],
     },
     {
-        input: 'dist/es/types/index.d.ts',
-        output: [{file: 'dist/index.d.ts', format: "esm"}],
+        input: 'lib/esm/types/index.d.ts',
+        output: [{file: 'lib/index.d.ts', format: "esm"}],
         external: [/\.(css|less|scss)$/],
         plugins: [dts()],
     },
