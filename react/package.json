@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "",
   "scripts": {
-    "clean": "rm -rf lib",
+    "clean": "rimraf lib es",
     "build": "yarn clean && rollup -c",
-    "watch": "yarn clean && rollup -cw",
+    "watch": "rollup -cw",
     "deploy": "yarn build && npm publish"
   },
   "author": "",
@@ -23,8 +23,8 @@
     "@rollup/plugin-commonjs": "^21.0.2",
     "@rollup/plugin-node-resolve": "^13.1.3",
     "@rollup/plugin-typescript": "^8.3.1",
+    "rimraf": "^3.0.2",
     "rollup": "^2.70.1",
-    "rollup-plugin-dts": "^4.2.0",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-styles": "^4.0.0",
     "tslib": "^2.3.1",
@@ -40,10 +40,11 @@
   "publishConfig": {
     "registry": "http://nexus.cluster.com/repository/npm-hosted/"
   },
-  "main": "lib/cjs/index.js",
-  "module": "lib/esm/index.js",
+  "main": "lib/index.js",
+  "module": "es/index.js",
   "files": [
-    "lib"
+    "lib",
+    "es"
   ],
   "types": "lib/index.d.ts"
 }

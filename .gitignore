@@ -3,6 +3,7 @@ node_modules
 dist/
 build/
 react/lib/
+react/es/
 
 # local env files
 .env.local
