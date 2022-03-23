@@ -1,5 +1,5 @@
 import React from "react";
-import * as antd from 'antd'
+import {Tree} from 'antd'
 
 export interface TreeProps {
     value?: any[];
@@ -16,7 +16,7 @@ const Index: React.FC<TreeProps> = ({value, onChange}) => {
     }
 
     return (
-        <antd.Tree
+        <Tree
             height={300}
             checkable
             fieldNames={{"title": "label", "key": "value"}}

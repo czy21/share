@@ -1,11 +1,11 @@
 import React from "react";
-import * as antd from 'antd'
 import {ModalProps} from 'antd'
+import {Modal} from 'antd'
 import * as intl from 'react-intl'
 
 const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
     return (
-        <antd.Modal
+        <Modal
             width={props.width ?? 800}
             style={props.style}
             destroyOnClose
@@ -18,7 +18,7 @@ const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
             {...props}
         >
             {props.children}
-        </antd.Modal>
+        </Modal>
     );
 };
 

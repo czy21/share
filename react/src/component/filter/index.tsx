@@ -21,7 +21,7 @@ export interface TagValue {
 const DefaultCurrent: any = ["", undefined]
 const DefaultTag = {}
 
-const Filter: React.FC<FilterProp> = (props: FilterProp) => {
+const Index: React.FC<FilterProp> = (props: FilterProp) => {
     const [current, setCurrent] = React.useState<[string, any]>(DefaultCurrent)
     const [tag, setTag] = React.useState<any>(DefaultTag)
     const [menuVisible, setMenuVisible] = React.useState<boolean>()
@@ -156,4 +156,4 @@ const Filter: React.FC<FilterProp> = (props: FilterProp) => {
     )
 }
 
-export default Filter
+export default Index

@@ -8,6 +8,5 @@ export interface ButtonProps {
 
 const Index: React.FC<ButtonProps> = (props: ButtonProps) => {
     return (<Button>{props.label}</Button>)
-
 }
 export default Index;
