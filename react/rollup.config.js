@@ -3,12 +3,13 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
 import styles from 'rollup-plugin-styles'
+import dts from 'rollup-plugin-dts'
 
 const packageJson = require('./package.json');
 
 export default [
     {
-        input: 'src/component/index.ts',
+        input: 'src/index.ts',
         external: [...Object.keys(packageJson.peerDependencies || {})],
         output: [
             {
