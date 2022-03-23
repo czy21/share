@@ -1,8 +1,8 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
-import {terser} from 'rollup-plugin-terser';
 import external from 'rollup-plugin-peer-deps-external';
+import styles from 'rollup-plugin-styles'
 
 const packageJson = require('./package.json');
 
@@ -27,7 +27,11 @@ export default [
             resolve(),
             commonjs(),
             typescript({tsconfig: './tsconfig.json'}),
-            terser()
-        ],
+            styles({
+                less: {
+                    javascriptEnabled: true
+                }
+            })
+        ]
     }
 ]
