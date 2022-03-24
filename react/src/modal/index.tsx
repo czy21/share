@@ -1,7 +1,6 @@
 import React from "react";
-import {ModalProps} from 'antd'
-import {Modal} from 'antd'
-import * as intl from 'react-intl'
+import {ModalProps, Modal} from 'antd'
+import {FormattedMessage} from 'react-intl'
 
 const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
     return (
@@ -12,9 +11,9 @@ const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
             title={props.title}
             visible={props.visible}
             onOk={props.onOk}
-            okText={<intl.FormattedMessage id={"common.ok"} defaultMessage={""}/>}
+            okText={<FormattedMessage id={"common.ok"} defaultMessage={""}/>}
             onCancel={props.onCancel}
-            cancelText={<intl.FormattedMessage id={"common.cancel"} defaultMessage={""}/>}
+            cancelText={<FormattedMessage id={"common.cancel"} defaultMessage={""}/>}
             {...props}
         >
             {props.children}

@@ -4,28 +4,27 @@ import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
 import styles from 'rollup-plugin-styles'
 
-const packageJson = require('./package.json');
-
-export default [
-    {
-        input: 'src/index.ts',
-        external: [...Object.keys(packageJson.peerDependencies || {})],
-        output: [
-            {
-                file: packageJson.main,
-                format: 'cjs'
-            },
-            {
-                file: packageJson.module,
-                format: 'esm'
-            }
-        ],
+const getByFormat = (format, outDir) => {
+    return {
+        external: [/node_modules/],
+        input: "src/index.ts",
+        output: {
+            dir: outDir,
+            format: format,
+            preserveModules: true,
+            preserveModulesRoot: "src",
+            exports: "named"
+        },
         plugins: [
             external(),
-            resolve(),
+            resolve({}),
             commonjs(),
             typescript({
-                tsconfig: './tsconfig.json'
+                tsconfig: './tsconfig.json',
+                compilerOptions: {
+                    "declaration": true,
+                    "outDir": outDir
+                }
             }),
             styles({
                 less: {
@@ -34,4 +33,9 @@ export default [
             })
         ]
     }
+}
+
+export default [
+    getByFormat("cjs", "lib"),
+    getByFormat("esm", "es")
 ]

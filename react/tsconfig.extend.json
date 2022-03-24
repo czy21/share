@@ -1,8 +1,5 @@
 {
   "compilerOptions": {
-    "declaration": true,
-    "declarationDir": ".",
-    "outDir": "lib"
   },
   "exclude": [
     "node_modules",
