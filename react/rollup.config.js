@@ -11,14 +11,22 @@ export default [
         input: 'src/index.ts',
         external: [...Object.keys(packageJson.peerDependencies || {})],
         output: [
-            {file: packageJson.main, format: 'cjs'},
-            {file: packageJson.module, format: 'esm'}
+            {
+                file: packageJson.main,
+                format: 'cjs'
+            },
+            {
+                file: packageJson.module,
+                format: 'esm'
+            }
         ],
         plugins: [
             external(),
             resolve(),
             commonjs(),
-            typescript({tsconfig: './tsconfig.json'}),
+            typescript({
+                tsconfig: './tsconfig.json'
+            }),
             styles({
                 less: {
                     javascriptEnabled: true
