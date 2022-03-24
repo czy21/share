@@ -27,6 +27,7 @@ const getByFormat = (format, outDir) => {
                 }
             }),
             styles({
+                mode: "extract",
                 less: {
                     javascriptEnabled: true
                 }
