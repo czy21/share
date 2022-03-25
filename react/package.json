@@ -1,14 +1,14 @@
 {
   "name": "share-react",
   "version": "0.1.0",
-  "description": "",
+  "description": "a component library base on the antd",
   "scripts": {
     "clean": "rimraf lib es",
     "build": "yarn clean && rollup -c",
     "watch": "rollup -cw",
     "deploy": "yarn build && npm publish"
   },
-  "author": "",
+  "author": "Bruce CHEN",
   "license": "ISC",
   "dependencies": {
     "@ant-design/icons": "^4.7.0",
