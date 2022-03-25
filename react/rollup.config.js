@@ -4,6 +4,8 @@ import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
 import postcss from 'rollup-plugin-postcss';
 import babel from 'rollup-plugin-babel';
+import postcss_modules from 'postcss-modules'
+import path from "path";
 
 let builds = [
     {
@@ -30,11 +32,20 @@ const getFormat = (format, outDir) => {
             external(),
             postcss({
                 extract: true,
-                modules: true,
+                autoModules: true,
+                modules: {
+                    generateScopedName: function (name, filename, css) {
+                        let path = require("path");
+                        const lib_name = path.basename(path.resolve(filename, ".."))
+                        return `ctm-${lib_name}-${name}`;
+                    }
+                },
                 use: {
                     sass: null,
                     stylus: null,
-                    less: {javascriptEnabled: true}
+                    less: {
+                        javascriptEnabled: true
+                    }
                 },
             }),
             babel({exclude: 'node_modules/**'}),

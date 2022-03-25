@@ -1,7 +1,7 @@
 import React from "react";
 import _ from 'lodash'
 import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
-import styles from "./index.m.less";
+import styles from "./index.module.less";
 
 export interface FilterItemProp {
     key: string

@@ -1,7 +1,7 @@
 import React from "react";
 import {ModalProps, Modal} from 'antd'
 import {FormattedMessage} from 'react-intl'
-import style from './index.m.less'
+import style from './index.module.less'
 
 const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
     return (
