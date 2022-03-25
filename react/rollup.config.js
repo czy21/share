@@ -2,7 +2,8 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
-import postcss from 'rollup-plugin-postcss'
+import postcss from 'rollup-plugin-postcss';
+import babel from 'rollup-plugin-babel';
 
 let builds = [
     {
@@ -14,7 +15,7 @@ let builds = [
         "outDir": "es"
     }
 ]
-const getByFormat = (format, outDir) => {
+const getFormat = (format, outDir) => {
     return {
         external: [/node_modules/],
         input: "src/index.ts",
@@ -27,7 +28,17 @@ const getByFormat = (format, outDir) => {
         },
         plugins: [
             external(),
-            resolve({}),
+            postcss({
+                extract: true,
+                modules: true,
+                use: {
+                    sass: null,
+                    stylus: null,
+                    less: {javascriptEnabled: true}
+                },
+            }),
+            babel({exclude: 'node_modules/**'}),
+            resolve({extensions: [".css"]}),
             commonjs({}),
             typescript({
                 tsconfig: './tsconfig.json',
@@ -40,11 +51,7 @@ const getByFormat = (format, outDir) => {
                     ...builds.map(t => t.outDir)
                 ]
             }),
-            postcss({
-                inject: ((cssVariableName, id) => ""),
-                plugins: []
-            })
         ]
     }
 }
-export default builds.map(t => getByFormat(t.format, t.outDir))
+export default builds.map(t => getFormat(t.format, t.outDir))

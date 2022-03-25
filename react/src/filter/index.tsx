@@ -1,16 +1,21 @@
 import React from "react";
-import lodash from 'lodash'
-import {Row, Col, message, Tag, Menu, Input, Button, Dropdown, Space} from 'antd'
+import _ from 'lodash'
+import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
 import styles from "./index.m.less";
 
+export interface FilterItemProp {
+    key: string
+    label: string
+}
+
 export interface FilterProp {
+    filters: FilterItemProp[]
     onSearch: (query?: any) => void
     page?: {
         pageIndex?: number,
         pageSize?: number,
         total?: number
     }
-    filters: any[]
 }
 
 export interface TagValue {
@@ -18,12 +23,12 @@ export interface TagValue {
     value?: any
 }
 
-const DefaultCurrent: any = ["", undefined]
-const DefaultTag = {}
+const defaultCurrent: any = ["", undefined]
+const defaultTag = {}
 
 const Index: React.FC<FilterProp> = (props: FilterProp) => {
-    const [current, setCurrent] = React.useState<[string, any]>(DefaultCurrent)
-    const [tag, setTag] = React.useState<any>(DefaultTag)
+    const [current, setCurrent] = React.useState<[string, any]>(defaultCurrent)
+    const [tag, setTag] = React.useState<any>(defaultTag)
     const [menuVisible, setMenuVisible] = React.useState<boolean>()
 
     const putTag = (value: {}) => {
@@ -34,7 +39,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
         if (current[0] === key) {
             clearCurrent()
         }
-        setTag(lodash.omit(tag, [key]))
+        setTag(_.omit(tag, [key]))
         inputRef.current.focus()
     }
 
@@ -45,7 +50,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                     <Tag
                         key={k}
                         color={k === current[0] ? "#87d068" : "default"}
-                        style={{borderRadius: "20px", fontSize: "14px"}}
+                        style={{fontSize: "14px"}}
                         closable={true}
                         onClick={() => {
                             setCurrent([k, v.value])
@@ -60,11 +65,12 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     }
 
     const validateTag = (): boolean => {
-        let validateRules: string = lodash.filter(tag, (v: TagValue, k) => lodash.isEmpty(v?.value)).map(t => t.label).join(",")
+        let validateRules: string = _.filter(tag, (v: TagValue, k) => _.isEmpty(v?.value)).map(t => t.label).join(",")
         if (validateRules) {
-            message.warn([validateRules, "不能为空"].join(" "))
+            message.warn([validateRules, "不能为空"].join(" ")).then(r => {
+            })
         }
-        return lodash.isEmpty(validateRules)
+        return _.isEmpty(validateRules)
     }
 
     const transformTagToQuery = (query: any): {} => {
@@ -92,10 +98,10 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     }
 
     const clearCurrent = () => {
-        setCurrent(DefaultCurrent)
+        setCurrent(defaultCurrent)
     }
     const clearTag = () => {
-        setTag(DefaultTag)
+        setTag(defaultTag)
     }
     const inputRef = React.useRef<any>()
 
