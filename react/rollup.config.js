@@ -2,8 +2,18 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
-import styles from 'rollup-plugin-styles'
+import postcss from 'rollup-plugin-postcss'
 
+let builds = [
+    {
+        "format": "cjs",
+        "outDir": "lib"
+    },
+    {
+        "format": "esm",
+        "outDir": "es"
+    }
+]
 const getByFormat = (format, outDir) => {
     return {
         external: [/node_modules/],
@@ -18,25 +28,23 @@ const getByFormat = (format, outDir) => {
         plugins: [
             external(),
             resolve({}),
-            commonjs(),
+            commonjs({}),
             typescript({
                 tsconfig: './tsconfig.json',
                 compilerOptions: {
                     "declaration": true,
                     "outDir": outDir
-                }
+                },
+                exclude: [
+                    "node_modules",
+                    ...builds.map(t => t.outDir)
+                ]
             }),
-            styles({
-                mode: "extract",
-                less: {
-                    javascriptEnabled: true
-                }
+            postcss({
+                inject: ((cssVariableName, id) => ""),
+                plugins: []
             })
         ]
     }
 }
-
-export default [
-    getByFormat("cjs", "lib"),
-    getByFormat("esm", "es")
-]
+export default builds.map(t => getByFormat(t.format, t.outDir))
