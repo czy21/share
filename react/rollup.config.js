@@ -3,8 +3,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
 import postcss from 'rollup-plugin-postcss';
-import babel from 'rollup-plugin-babel';
-import postcss_modules from 'postcss-modules'
+import postcss_less from 'postcss-less'
 import path from "path";
 
 let builds = [
@@ -17,13 +16,13 @@ let builds = [
         "outDir": "es"
     }
 ]
-const getFormat = (format, outDir) => {
+const getFormat = (t) => {
     return {
         external: [/node_modules/],
         input: "src/index.ts",
         output: {
-            dir: outDir,
-            format: format,
+            dir: t.outDir,
+            format: t.format,
             preserveModules: true,
             preserveModulesRoot: "src",
             exports: "named"
@@ -35,27 +34,31 @@ const getFormat = (format, outDir) => {
                 autoModules: true,
                 modules: {
                     generateScopedName: function (name, filename, css) {
-                        let path = require("path");
-                        const lib_name = path.basename(path.resolve(filename, ".."))
-                        return `ctm-${lib_name}-${name}`;
+                        const component_name = path.basename(path.resolve(filename, ".."))
+                        return `ctm-${component_name}-${name}`;
                     }
                 },
+                stringifier:(args => {
+                    console.log(args)
+                }),
                 use: {
                     sass: null,
                     stylus: null,
                     less: {
-                        javascriptEnabled: true
+                        javascriptEnabled: true,
+                        lessOptions: (loaderContext) => {
+                            console.log(loaderContext)
+                        }
                     }
-                },
+                }
             }),
-            babel({exclude: 'node_modules/**'}),
-            resolve({extensions: [".css"]}),
+            resolve({browser:true}),
             commonjs({}),
             typescript({
-                tsconfig: './tsconfig.json',
+                tsconfig: 'tsconfig.json',
                 compilerOptions: {
                     "declaration": true,
-                    "outDir": outDir
+                    "outDir": t.outDir
                 },
                 exclude: [
                     "node_modules",
@@ -65,4 +68,4 @@ const getFormat = (format, outDir) => {
         ]
     }
 }
-export default builds.map(t => getFormat(t.format, t.outDir))
+export default builds.map(t => getFormat(t))
