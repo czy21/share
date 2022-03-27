@@ -1,7 +1,7 @@
 import React from "react";
 import _ from 'lodash'
 import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
-import styles from "./index.module.less";
+import util from '../util'
 
 export interface FilterItemProp {
     key: string
@@ -25,7 +25,6 @@ export interface TagValue {
 
 const defaultCurrent: any = ["", undefined]
 const defaultTag = {}
-
 const Index: React.FC<FilterProp> = (props: FilterProp) => {
     const [current, setCurrent] = React.useState<[string, any]>(defaultCurrent)
     const [tag, setTag] = React.useState<any>(defaultTag)
@@ -108,8 +107,8 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     return (
         <Row gutter={8}>
             <Col span={22}>
-                <div className={styles.wrapper}>
-                    <div className={styles.content}>
+                <div className={util.style.getGlobalPrefix() + "-filter-wrapper"}>
+                    <div className={util.style.getGlobalPrefix() + "-filter-content"}>
                         {renderTag()}
                         <Dropdown
                             overlay={renderFilter()}

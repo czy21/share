@@ -2,9 +2,11 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
-import postcss from 'rollup-plugin-postcss';
-import postcss_less from 'postcss-less'
-import path from "path";
+import copy from "rollup-plugin-copy";
+
+const path = require('path')
+
+const fs = require('fs-extra')
 
 let builds = [
     {
@@ -29,30 +31,7 @@ const getFormat = (t) => {
         },
         plugins: [
             external(),
-            postcss({
-                extract: true,
-                autoModules: true,
-                modules: {
-                    generateScopedName: function (name, filename, css) {
-                        const component_name = path.basename(path.resolve(filename, ".."))
-                        return `ctm-${component_name}-${name}`;
-                    }
-                },
-                stringifier:(args => {
-                    console.log(args)
-                }),
-                use: {
-                    sass: null,
-                    stylus: null,
-                    less: {
-                        javascriptEnabled: true,
-                        lessOptions: (loaderContext) => {
-                            console.log(loaderContext)
-                        }
-                    }
-                }
-            }),
-            resolve({browser:true}),
+            resolve({browser: true}),
             commonjs({}),
             typescript({
                 tsconfig: 'tsconfig.json',
@@ -65,6 +44,7 @@ const getFormat = (t) => {
                     ...builds.map(t => t.outDir)
                 ]
             }),
+            copy({targets: [{src: "src/**/*.less", dest: t.outDir}], flatten: false})
         ]
     }
 }
