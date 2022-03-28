@@ -2,12 +2,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import external from 'rollup-plugin-peer-deps-external';
-import style from 'rollup-plugin-styles'
 import copy from "rollup-plugin-copy";
-
-const path = require('path')
-
-const fs = require('fs-extra')
 
 let builds = [
     {
