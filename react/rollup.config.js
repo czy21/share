@@ -25,9 +25,10 @@ const getFormat = (t) => {
             preserveModulesRoot: "src",
             exports: "named"
         },
+        cache: true,
         plugins: [
             external(),
-            resolve({browser: true}),
+            resolve({}),
             commonjs({}),
             typescript({
                 tsconfig: 'tsconfig.json',

@@ -2,26 +2,31 @@ import React from "react";
 import * as intl from 'react-intl'
 import _ from 'lodash'
 import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
-import util from '../util'
+import util from '../config'
 
 export interface FilterItemProp {
     key: string
     label: string
 }
 
+export interface FilterItemValue extends FilterItemProp {
+    value?: any
+    tag?: {
+        style?: React.CSSProperties
+    }
+}
+
 export interface FilterProp {
     filters: FilterItemProp[]
+    tag?: {
+        style?: React.CSSProperties
+    }
     onSearch: (query?: any) => void
     page?: {
         pageIndex?: number,
         pageSize?: number,
         total?: number
     }
-}
-
-export interface TagOption {
-    label: string,
-    value?: any
 }
 
 const defaultCurrent: any = ["", undefined]
@@ -50,7 +55,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                     <Tag
                         key={k}
                         color={k === current[0] ? "#87d068" : "default"}
-                        style={{fontSize: "14px"}}
+                        style={{fontSize: "14px", ...props.tag?.style, ...v.tag?.style}}
                         closable={true}
                         onClick={() => {
                             setCurrent([k, v.value])
@@ -65,16 +70,17 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     }
 
     const validateTag = (): boolean => {
-        let validatedRules: string = _.filter(tag, (v: TagOption, k) => _.isEmpty(v?.value)).map(t => t.label).join(",")
+        let validatedRules: string = _.filter(tag, (v: FilterItemValue, k) => _.isEmpty(v?.value)).map(t => t.label).join(",")
         if (validatedRules) {
             message.warn([validatedRules, "不能为空"].join(" "))
-                .then(r => {})
+                .then(r => {
+                })
         }
         return _.isEmpty(validatedRules)
     }
 
     const transformTagToQuery = (query: any): {} => {
-        return {...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, (v as TagOption)?.value])), ...props.page}
+        return {...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, (v as FilterItemValue)?.value])), ...props.page}
     }
 
     const renderFilter = () => {
@@ -108,8 +114,8 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     return (
         <Row gutter={8}>
             <Col span={22}>
-                <div className={util.style.getGlobalPrefix() + "-filter-wrapper"}>
-                    <div className={util.style.getGlobalPrefix() + "-filter-content"}>
+                <div className={util.style.getPrefix() + "-filter-wrapper"}>
+                    <div className={util.style.getPrefix() + "-filter-content"}>
                         {renderTag()}
                         <Dropdown
                             overlay={renderFilter()}
@@ -132,7 +138,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                                     const ck: string = current[0]
                                     if (ck) {
                                         putTag({
-                                            [ck]: {...tag[ck], value: current[1]} as TagOption
+                                            [ck]: {...tag[ck], value: current[1]} as FilterItemValue
                                         })
                                     }
                                 }}
