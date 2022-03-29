@@ -1,4 +1,5 @@
 import React from "react";
+import * as intl from 'react-intl'
 import _ from 'lodash'
 import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
 import util from '../util'
@@ -18,7 +19,7 @@ export interface FilterProp {
     }
 }
 
-export interface TagValue {
+export interface TagOption {
     label: string,
     value?: any
 }
@@ -36,7 +37,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
 
     const removeTag = (key: string) => {
         if (current[0] === key) {
-            clearCurrent()
+            resetCurrent()
         }
         setTag(_.omit(tag, [key]))
         inputRef.current.focus()
@@ -64,16 +65,16 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
     }
 
     const validateTag = (): boolean => {
-        let validateRules: string = _.filter(tag, (v: TagValue, k) => _.isEmpty(v?.value)).map(t => t.label).join(",")
-        if (validateRules) {
-            message.warn([validateRules, "不能为空"].join(" ")).then(r => {
-            })
+        let validatedRules: string = _.filter(tag, (v: TagOption, k) => _.isEmpty(v?.value)).map(t => t.label).join(",")
+        if (validatedRules) {
+            message.warn([validatedRules, "不能为空"].join(" "))
+                .then(r => {})
         }
-        return _.isEmpty(validateRules)
+        return _.isEmpty(validatedRules)
     }
 
     const transformTagToQuery = (query: any): {} => {
-        return {...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, (v as TagValue)?.value])), ...props.page}
+        return {...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, (v as TagOption)?.value])), ...props.page}
     }
 
     const renderFilter = () => {
@@ -86,7 +87,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                         [key]: {
                             label: (props.filters.filter(t => t.key === key)[0]).label,
                             value: tagValue
-                        } as TagValue
+                        }
                     })
                     inputRef.current.focus()
                     setMenuVisible(false)
@@ -96,10 +97,10 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
         )
     }
 
-    const clearCurrent = () => {
+    const resetCurrent = () => {
         setCurrent(defaultCurrent)
     }
-    const clearTag = () => {
+    const resetTag = () => {
         setTag(defaultTag)
     }
     const inputRef = React.useRef<any>()
@@ -131,7 +132,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                                     const ck: string = current[0]
                                     if (ck) {
                                         putTag({
-                                            [ck]: {...tag[ck], value: current[1]} as TagValue
+                                            [ck]: {...tag[ck], value: current[1]} as TagOption
                                         })
                                     }
                                 }}
@@ -143,17 +144,17 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
             <Col span={2}>
                 <Space>
                     <Button type={"default"} onClick={() => {
-                        clearTag()
-                        clearCurrent()
+                        resetTag()
+                        resetCurrent()
                         props.onSearch(transformTagToQuery({}))
-                    }}>重置
+                    }}>{<intl.FormattedMessage id={"common.filter.reset"} defaultMessage={""}/>}
                     </Button>
                     <Button type={"primary"} onClick={() => {
                         if (validateTag()) {
-                            clearCurrent()
+                            resetCurrent()
                             props.onSearch(transformTagToQuery(tag))
                         }
-                    }}>搜索
+                    }}>{<intl.FormattedMessage id={"common.filter.search"} defaultMessage={""}/>}
                     </Button>
                 </Space>
             </Col>
