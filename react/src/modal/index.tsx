@@ -1,7 +1,7 @@
 import React from "react";
 import {ModalProps, Modal} from 'antd'
 import _ from 'lodash'
-import * as intl from 'react-intl'
+import intl from "../intl"
 
 const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
     return (
@@ -12,9 +12,9 @@ const Index: React.FC<ModalProps> = (props: ModalProps | any) => {
             title={props.title}
             visible={props.visible}
             onOk={props.onOk}
-            okText={<intl.FormattedMessage id={"common.ok"} defaultMessage={""}/>}
+            okText={<intl.FormatMessage id={"common.ok"}/>}
             onCancel={props.onCancel}
-            cancelText={<intl.FormattedMessage id={"common.cancel"} defaultMessage={""}/>}
+            cancelText={<intl.FormatMessage id={"common.cancel"}/>}
             {..._.omit(props, ['children'])}
         >
             {props.children}

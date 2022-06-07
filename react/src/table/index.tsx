@@ -12,8 +12,6 @@ export interface TableProp {
         total?: number
     }
     columns: any[]
-    filter?: any
-    extension?: any
 }
 
 const Index: React.FC<TableProp> = (props: TableProp) => {
@@ -23,8 +21,6 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
     return (
         <div>
             <Space direction={"vertical"} style={{width: "100%"}} size={"middle"}>
-                {props.filter}
-                {props.extension}
                 <Table
                     size={"small"}
                     columns={props.columns?.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}

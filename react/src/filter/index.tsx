@@ -1,5 +1,5 @@
 import React from "react";
-import * as intl from 'react-intl'
+import intl from "../intl"
 import _ from 'lodash'
 import {Button, Col, Dropdown, Input, Menu, message, Row, Space, Tag} from 'antd'
 import util from '../config'
@@ -153,14 +153,14 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
                         resetTag()
                         resetCurrent()
                         props.onSearch(transformTagToQuery({}))
-                    }}>{<intl.FormattedMessage id={"common.filter.reset"} defaultMessage={""}/>}
+                    }}>{<intl.FormatMessage id={"common.filter.reset"}/>}
                     </Button>
                     <Button type={"primary"} onClick={() => {
                         if (validateTag()) {
                             resetCurrent()
                             props.onSearch(transformTagToQuery(tag))
                         }
-                    }}>{<intl.FormattedMessage id={"common.filter.search"} defaultMessage={""}/>}
+                    }}>{<intl.FormatMessage id={"common.filter.search"}/>}
                     </Button>
                 </Space>
             </Col>
