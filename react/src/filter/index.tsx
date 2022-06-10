@@ -113,7 +113,7 @@ const Index: React.FC<FilterProp> = (props: FilterProp) => {
 
     return (
         <Row gutter={8}>
-            <Col span={22}>
+            <Col span={20}>
                 <div className={util.style.getPrefix() + "-filter-wrapper"}>
                     <div className={util.style.getPrefix() + "-filter-content"}>
                         {renderTag()}

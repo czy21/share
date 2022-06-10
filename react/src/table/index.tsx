@@ -12,6 +12,7 @@ export interface TableProp {
         total?: number
     }
     columns: any[]
+    filter?: any
 }
 
 const Index: React.FC<TableProp> = (props: TableProp) => {
@@ -19,23 +20,22 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
     const [page, setPage] = React.useState<PageModel>({pageIndex: 1, pageSize: 10, ...props.page})
 
     return (
-        <div>
-            <Space direction={"vertical"} style={{width: "100%"}} size={"middle"}>
-                <Table
-                    size={"small"}
-                    columns={props.columns?.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}
-                    rowKey={(r: any) => r.id}
-                    dataSource={props.list}
-                    pagination={page && {
-                        total: page?.total,
-                        current: page?.pageIndex,
-                        pageSize: page?.pageSize,
-                        showTotal: ((t: any, r: any) => `第 ${r[0]}-${r[1]} 条/总共 ${t} 条`),
-                        onChange: (pageIndex, pageSize) => setPage({pageIndex, pageSize})
-                    }}
-                />
-            </Space>
-        </div>
+        <Space direction={"vertical"} style={{width: "100%"}} size={"middle"}>
+            {props.filter}
+            <Table
+                size={"small"}
+                columns={props.columns?.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}
+                rowKey={(r: any) => r.id}
+                dataSource={props.list}
+                pagination={page && {
+                    total: page?.total,
+                    current: page?.pageIndex,
+                    pageSize: page?.pageSize,
+                    showTotal: ((t: any, r: any) => `第 ${r[0]}-${r[1]} 条/总共 ${t} 条`),
+                    onChange: (pageIndex, pageSize) => setPage({pageIndex, pageSize})
+                }}
+            />
+        </Space>
     )
 }
 
