@@ -11,13 +11,13 @@ export interface ColumnProp {
 }
 
 export interface TableProp {
-    list: any[]
     page?: {
         pageIndex?: number,
         pageSize?: number,
         total?: number
     }
     columns: ColumnProp[]
+    list: any[]
 }
 
 const Index: React.FC<TableProp> = (props: TableProp) => {
@@ -28,7 +28,7 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
         <Space direction={"vertical"} style={{width: "100%"}} size={"middle"}>
             <Table
                 size={"small"}
-                columns={props.columns?.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}
+                columns={props.columns.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}
                 rowKey={(r: any) => {
                     const k = props.columns.filter(t => t.primaryKey)[0]?.key
                     return k ? r[k] : r.id
