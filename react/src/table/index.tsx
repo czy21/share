@@ -29,7 +29,10 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
             <Table
                 size={"small"}
                 columns={props.columns?.map((t: any) => _.omit({...t, title: t.header, dataIndex: t.key}, ["key", "header"]))}
-                rowKey={(r: any) => props.columns.filter(t => t.primaryKey)[0]?.key ?? r.id}
+                rowKey={(r: any) => {
+                    const k = props.columns.filter(t => t.primaryKey)[0]?.key
+                    return k ? r[k] : r.id
+                }}
                 dataSource={props.list}
                 pagination={page && {
                     total: page?.total,
