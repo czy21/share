@@ -22,7 +22,7 @@ export interface TableProp {
 
 const Index: React.FC<TableProp> = (props: TableProp) => {
 
-    const [page, setPage] = React.useState<PageModel>({pageIndex: 1, pageSize: 10, ...props.page})
+    const [page, setPage] = React.useState<PageModel>(props.page)
 
     return (
         <Space direction={"vertical"} style={{width: "100%"}} size={"middle"}>
@@ -34,13 +34,14 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
                     return k ? r[k] : r.id
                 }}
                 dataSource={props.list}
-                pagination={page && {
-                    total: page?.total,
-                    current: page?.pageIndex,
-                    pageSize: page?.pageSize,
+                pagination={(page ?? false) && {
+                    total: page.total,
+                    current: page.pageIndex,
+                    pageSize: page.pageSize,
                     showTotal: ((t: any, r: any) => `第 ${r[0]}-${r[1]} 条/总共 ${t} 条`),
                     onChange: (pageIndex, pageSize) => setPage({pageIndex, pageSize})
                 }}
+                {..._.omit(props,["page"])}
             />
         </Space>
     )
