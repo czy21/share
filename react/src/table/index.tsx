@@ -41,7 +41,6 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
                     showTotal: ((t: any, r: any) => `第 ${r[0]}-${r[1]} 条/总共 ${t} 条`),
                     onChange: (pageIndex, pageSize) => setPage({pageIndex, pageSize})
                 }}
-                {..._.omit(props,["page"])}
             />
         </Space>
     )
