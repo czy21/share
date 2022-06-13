@@ -1,6 +1,6 @@
 import React from "react";
 import _ from 'lodash'
-import {Button, Dropdown, Menu, Space, Table} from 'antd'
+import {Button, Dropdown, Menu, Space, Table, TableProps as AntdTableProps} from 'antd'
 import {DashOutlined} from '@ant-design/icons'
 import {PageModel} from "./data";
 
@@ -10,7 +10,7 @@ export interface ColumnProp {
     primaryKey?: boolean
 }
 
-export interface TableProp {
+export interface TableProp extends AntdTableProps<any> {
     page?: {
         pageIndex?: number,
         pageSize?: number,
@@ -41,6 +41,7 @@ const Index: React.FC<TableProp> = (props: TableProp) => {
                     showTotal: ((t: any, r: any) => `第 ${r[0]}-${r[1]} 条/总共 ${t} 条`),
                     onChange: (pageIndex, pageSize) => setPage({pageIndex, pageSize})
                 }}
+                {..._.omit(props, ["page", "list", "columns"])}
             />
         </Space>
     )
