@@ -20,6 +20,6 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > /home/runner/.ssh/id-rsa
           chmod 600 /home/runner/.ssh/id-rsa
           SSH_OPT="-o StrictHostKeyChecking=no -i /home/runner/.ssh/id-rsa"
-          WEB_DIR=/usr/share/nginx/${{ inputs.web_name }}/
+          WEB_DIR=/www/${{ inputs.web_name }}/
           scp ${SSH_OPT} artifact.tar opsor@${{ secrets.SSH_HOST }}:
-          ssh ${SSH_OPT} opsor@${{ secrets.SSH_HOST }} "[ `basename $WEB_DIR` != "nginx" ] && sudo rm -rf $WEB_DIR && sudo mkdir -p $WEB_DIR && sudo tar -xvf artifact.tar -C $WEB_DIR && rm -rf artifact.tar"
+          ssh ${SSH_OPT} opsor@${{ secrets.SSH_HOST }} "[ `basename $WEB_DIR` != "www" ] && sudo rm -rf $WEB_DIR && sudo mkdir -p $WEB_DIR && sudo tar -xvf artifact.tar -C $WEB_DIR && rm -rf artifact.tar"
