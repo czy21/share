@@ -1,5 +1,10 @@
+import argparse
 import json
 import pathlib
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-t','--targets', nargs="+", default=[])
+args: argparse.Namespace = parser.parse_args()
 
 targets = []
 subtargets = []
@@ -12,9 +17,10 @@ if packages_path.exists():
 
 config_path = pathlib.Path(__file__).joinpath("../../../../config").resolve()
 global_profiles = config_path.joinpath("profiles.json")
-for p in config_path.rglob("**/*profiles.json"):
-    if p == global_profiles:
-        continue
+config_profiles = list(filter(lambda t: t != global_profiles,config_path.rglob("**/*profiles.json")))
+if args.targets:
+    config_profiles = list(filter(lambda t: t.exists(),[config_path.joinpath(t).joinpath('profiles.json') for t in args.targets]))
+for p in config_profiles:
     profile_obj = json.loads(p.read_text())
     profile_target = profile_obj.get("target")
 

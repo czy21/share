@@ -5,7 +5,8 @@ on:
     inputs:
       openwrt_tag:
         type: string
-
+      targets:
+        type: string
 jobs:
   setup:
     name: Setup
@@ -21,8 +22,9 @@ jobs:
       artifact_targets_rel: ${{ steps.set_env.outputs.artifact_targets_rel }}
       artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/checkout@v5
         with:
           repository: czy21/share
@@ -55,8 +57,25 @@ jobs:
 
           echo "artifact_targets_rel=${artifact_targets_rel}" >> "$GITHUB_OUTPUT"
           echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
-
-          python3 -B .github/workflows/scripts/openwrt-get_targets.py | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
+          
+          TARGETS="${{ inputs.targets }}"
+          if [ "${{ github.event_name }}" = "push" ];then
+            IMG_ROOTS=$(find config -name profiles.json -and ! -path config/profiles.json)
+            CHANGES=$(git diff --diff-filter=d --name-only HEAD~)
+            for ROOT in $IMG_ROOTS; do
+              for CHANGE in $CHANGES; do
+                if [[ "$CHANGE" == "$ROOT"* ]]; then
+                  TARGETS+=$(echo "$ROOT" | sed -e 's|config/\(.*\)/profiles.json|\1|')
+                  break
+                fi
+              done
+            done
+          fi
+          echo "Building $TARGETS"
+          if [ -n "$TARGETS" ];then
+            TARGETS="-t $TARGETS"
+          fi
+          python3 -B .github/workflows/scripts/openwrt-get_targets.py $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
 
   build:
     name: Build ${{ matrix.target }}/${{ matrix.subtarget }}
@@ -73,8 +92,9 @@ jobs:
         - openwrt-share:/data/
       options: --user root --privileged --pull always
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/checkout@v5
         with:
           repository: czy21/share

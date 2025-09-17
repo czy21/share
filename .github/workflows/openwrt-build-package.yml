@@ -19,8 +19,9 @@ jobs:
       openwrt_branch_number: ${{ steps.set_env.outputs.openwrt_branch_number }}
       artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/checkout@v5
         with:
           repository: czy21/share
@@ -60,15 +61,11 @@ jobs:
           fetch-depth: 0
       - name: Determine packages
         run: |
-          PACKAGES=
-          INPUT_PACKAGES="${{ inputs.packages }}"
-          if [[ "$INPUT_PACKAGES" =~ "luci" ]];then
-            PACKAGES+="luci-base "
-          fi
-          if [[ ! "$INPUT_PACKAGES" =~ "all" ]];then
+          PACKAGES="${{ inputs.packages }}"
+          if [ "${{ github.event_name }}" = "push" ];then
             # only detect packages with changes
             PKG_ROOTS=$(find . -name Makefile | grep -v ".*/src/Makefile" | sed -e 's@./\(.*\)/Makefile@\1/@')
-            CHANGES=$(git diff --diff-filter=d --name-only ${{ github.event_name == 'push' && 'HEAD^' || '' }})
+            CHANGES=$(git diff --diff-filter=d --name-only HEAD~)
   
             for ROOT in $PKG_ROOTS; do
               for CHANGE in $CHANGES; do
@@ -78,21 +75,9 @@ jobs:
                 fi
               done
             done
-            
-            for t in $INPUT_PACKAGES;do
-              flag=false
-              for s in $PACKAGES;do
-                if [[ "$t" == "$s" ]]; then
-                  flag=true
-                  break
-                fi
-              done
-              if [ $flag == "false" ];then
-                PACKAGES+="$t "
-              fi
-            done
-            PACKAGES="${PACKAGES:-luci-app-attendedsysupgrade}"
+
           fi
+          PACKAGES="${PACKAGES:-luci-app-attendedsysupgrade}"
 
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
