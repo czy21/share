@@ -3,7 +3,7 @@ name: Build images
 on:
   workflow_call:
     inputs:
-      openwrt_tag:
+      version:
         type: string
       targets:
         type: string
@@ -14,11 +14,10 @@ jobs:
     outputs:
       targets: ${{ steps.set_env.outputs.targets }}
       targets_subtargets: ${{ steps.set_env.outputs.targets_subtargets }}
-      targets_devices: ${{ steps.set_env.outputs.targets_devices }}
-      openwrt_tag: ${{ steps.set_env.outputs.openwrt_tag }}
-      openwrt_tag_version: ${{ steps.set_env.outputs.openwrt_tag_version }}
-      openwrt_branch: ${{ steps.set_env.outputs.openwrt_branch }}
-      openwrt_branch_number: ${{ steps.set_env.outputs.openwrt_branch_number }}
+      tag: ${{ steps.set_env.outputs.tag }}
+      tag_number: ${{ steps.set_env.outputs.tag_number }}
+      branch: ${{ steps.set_env.outputs.branch }}
+      branch_number: ${{ steps.set_env.outputs.branch_number }}
       artifact_targets_rel: ${{ steps.set_env.outputs.artifact_targets_rel }}
       artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
     steps:
@@ -33,27 +32,28 @@ jobs:
         id: set_env
         run: |
           mv feeds/share/.github/workflows/scripts .github/workflows/
-          openwrt_branch="${GITHUB_REF#refs/heads/}"
-          openwrt_branch_number=$(echo $openwrt_branch | sed 's|openwrt-||')
-          openwrt_tag=${{ inputs.openwrt_tag }}
+          branch="${GITHUB_REF#refs/heads/}"
+          branch_number=$(echo $branch | sed 's|openwrt-||')
+          tag=${{ inputs.version }}
 
           artifact_targets_rel=
           artifact_packages_rel=
-          if [ "${openwrt_branch}" == "main" ];then
-            openwrt_tag=$openwrt_branch
+          if [ "${branch}" == "main" ];then
+            tag=$branch
             artifact_targets_rel=snapshots/targets
             artifact_packages_rel=snapshots/packages
           else
-            openwrt_tag=${openwrt_tag:-$(curl -sL 'https://git.openwrt.org/?p=openwrt/openwrt.git;a=summary' | sed -n "s|.*OpenWrt \(v${openwrt_branch_number}.*\) Release.*|\1|p" | head -n 1)}
-            openwrt_tag_version=$(echo $openwrt_tag | sed 's|^v||')
-            artifact_targets_rel=releases/$openwrt_tag_version/targets
-            artifact_packages_rel=releases/packages-${openwrt_branch_number}
+            tag=${tag:-$(curl -sL 'https://git.openwrt.org/?p=openwrt/openwrt.git;a=summary' | sed -n "s|.*OpenWrt \(v${branch_number}.*\) Release.*|\1|p" | head -n 1)}
+            tag=$(echo $tag | sed '/^v/! s/^/v/')
+            tag_number=$(echo $tag | sed 's|^v||')
+            artifact_targets_rel=releases/$tag_number/targets
+            artifact_packages_rel=releases/packages-${branch_number}
           fi
 
-          echo "openwrt_branch=${openwrt_branch}" >> "$GITHUB_OUTPUT"
-          echo "openwrt_branch_number=${openwrt_branch_number}" >> "$GITHUB_OUTPUT"
-          echo "openwrt_tag=${openwrt_tag}" >> "$GITHUB_OUTPUT"
-          echo "openwrt_tag_version=${openwrt_tag_version}" >> "$GITHUB_OUTPUT"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "tag_number=${tag_number}" >> "$GITHUB_OUTPUT"
 
           echo "artifact_targets_rel=${artifact_targets_rel}" >> "$GITHUB_OUTPUT"
           echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
@@ -86,9 +86,9 @@ jobs:
        matrix:
          include: ${{fromJson(needs.setup.outputs.targets_subtargets)}}
     container:
-      image: openwrt/imagebuilder:${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.openwrt_tag }}
+      image: openwrt/imagebuilder:${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}
       volumes:
-        - openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.openwrt_tag }}-${{ github.run_id }}:/builder
+        - openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}-${{ github.run_id }}:/builder
         - openwrt-share:/data/
       options: --user root --privileged --pull always
     steps:
@@ -122,7 +122,7 @@ jobs:
           
           ln -snf ${{ steps.set_env.outputs.download_targets_dir }} bin/targets
 
-          openwrt_tag=${{ needs.setup.outputs.openwrt_tag }}
+          tag=${{ needs.setup.outputs.tag }}
           openwrt_mirror=https://mirrors.pku.edu.cn/openwrt
 
           if [ -f setup.sh ];then
@@ -132,7 +132,7 @@ jobs:
 
           sed -i 's|^CONFIG_SIGNATURE_CHECK|# \0|' .config
 
-          if [ "$openwrt_tag" == "main" ];then
+          if [ "$tag" == "main" ];then
 
             id;pwd;ls -al
 
@@ -199,7 +199,7 @@ jobs:
     if: always()
     steps:
       - run: |
-          volume_names=$(docker volume ls -q | grep 'openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.openwrt_tag }}-${{ github.run_id }}$' || true | xargs )
+          volume_names=$(docker volume ls -q | grep 'openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}-${{ github.run_id }}$' || true | xargs )
           if [ -n "${volume_names}" ];then
             docker volume rm $volume_names
           fi

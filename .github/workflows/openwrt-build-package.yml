@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       archs: ${{ steps.set_env.outputs.archs }}
-      openwrt_branch: ${{ steps.set_env.outputs.openwrt_branch }}
-      openwrt_branch_number: ${{ steps.set_env.outputs.openwrt_branch_number }}
+      branch: ${{ steps.set_env.outputs.branch }}
+      branch_number: ${{ steps.set_env.outputs.branch_number }}
       artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
     steps:
       - uses: actions/checkout@v5
@@ -30,17 +30,17 @@ jobs:
         id: set_env
         run: |
           mv feeds/share/.github/workflows/scripts .github/workflows/
-          openwrt_branch="${GITHUB_REF#refs/heads/}"
-          openwrt_branch_number=$(echo $openwrt_branch | sed 's|openwrt-||')
+          branch="${GITHUB_REF#refs/heads/}"
+          branch_number=$(echo $branch | sed 's|openwrt-||')
 
-          artifact_packages_rel=releases/packages-${openwrt_branch_number}
+          artifact_packages_rel=releases/packages-${branch_number}
           
-          if [ "${openwrt_branch}" == "main" ];then
+          if [ "${branch}" == "main" ];then
             artifact_packages_rel=snapshots/packages
           fi
 
-          echo "openwrt_branch=${openwrt_branch}" >> "$GITHUB_OUTPUT"
-          echo "openwrt_branch_number=${openwrt_branch_number}" >> "$GITHUB_OUTPUT"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
           echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
 
           wget https://mirrors.pku.edu.cn/files/openwrt/$artifact_packages_rel/ -O packages.json
@@ -85,7 +85,7 @@ jobs:
       - name: Build
         uses: openwrt/gh-action-sdk@v9
         env:
-          ARCH: ${{ matrix.arch }}-${{ needs.setup.outputs.openwrt_branch }}
+          ARCH: ${{ matrix.arch }}-${{ needs.setup.outputs.branch }}
           FEEDNAME: packages_ci
           V: ${{ inputs.debug && 's' || '' }}
 
@@ -118,9 +118,9 @@ jobs:
     needs: [setup,build]
     if: always()
     container:
-      image: openwrt/sdk:x86-64-${{ needs.setup.outputs.openwrt_branch }}
+      image: openwrt/sdk:x86-64-${{ needs.setup.outputs.branch }}
       volumes:
-        - openwrt-sdk-x86-64-${{ needs.setup.outputs.openwrt_branch }}-${{ github.run_id }}:/builder
+        - openwrt-sdk-x86-64-${{ needs.setup.outputs.branch }}-${{ github.run_id }}:/builder
         - openwrt-share:/data/
       options: --user root --privileged --pull always
     steps:
@@ -172,7 +172,7 @@ jobs:
     if: always()
     steps:
       - run: |
-          volume_names=$(docker volume ls -q | grep 'openwrt-sdk-x86-64-${{ needs.setup.outputs.openwrt_branch }}-${{ github.run_id }}$' || true | xargs )
+          volume_names=$(docker volume ls -q | grep 'openwrt-sdk-x86-64-${{ needs.setup.outputs.branch }}-${{ github.run_id }}$' || true | xargs )
           if [ -n "${volume_names}" ];then
             docker volume rm $volume_names
           fi
