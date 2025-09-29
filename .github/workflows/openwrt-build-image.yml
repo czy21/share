@@ -3,10 +3,13 @@ name: Build images
 on:
   workflow_call:
     inputs:
+      mirror: 
+        type: string
       version:
         type: string
       targets:
         type: string
+
 jobs:
   setup:
     name: Setup
@@ -123,11 +126,10 @@ jobs:
           ln -snf ${{ steps.set_env.outputs.download_targets_dir }} bin/targets
 
           tag=${{ needs.setup.outputs.tag }}
-          openwrt_mirror=https://mirrors.pku.edu.cn/openwrt
 
           if [ -f setup.sh ];then
             sed -i "s|^sha256sum -c|#\0|" setup.sh
-            UPSTREAM_URL=${openwrt_mirror} bash setup.sh
+            UPSTREAM_URL=${{ inputs.mirror }} bash setup.sh
           fi
 
           sed -i 's|^CONFIG_SIGNATURE_CHECK|# \0|' .config
@@ -138,7 +140,7 @@ jobs:
 
             openwrt_plugin=$(sed -n -e 's|\(.*\)base\(\.*\)|\1plugin\2|p' repositories | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
 
-            sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${openwrt_mirror}|" repositories
+            sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
 
             cat repositories
           else
@@ -147,7 +149,7 @@ jobs:
             (cd ${{ steps.set_env.outputs.download_targets_dir }}/../;ln -snf ../$(basename ${{ needs.setup.outputs.artifact_packages_rel }}) packages)
 
             openwrt_plugin=$(sed -n -e 's|openwrt_base\(.*\)base$|openwrt_plugin\1plugin|p' repositories.conf | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
-            sed -i -e "s|https://downloads.openwrt.org|${openwrt_mirror}|" -e "\$a ${openwrt_plugin}" repositories.conf
+            sed -i -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" -e "\$a ${openwrt_plugin}" repositories.conf
             cat repositories.conf
 
             export PATH=$(pwd)/staging_dir/host/bin:$PATH
@@ -159,7 +161,7 @@ jobs:
             tee files/etc/uci-defaults/99-setup << EOF
           #!/bin/sh
           echo "Replacing distfeeds..."
-          sed -i "s|https://downloads.openwrt.org|${openwrt_mirror}|" /etc/opkg/distfeeds.conf
+          sed -i "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" /etc/opkg/distfeeds.conf
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" >> /etc/opkg/customfeeds.conf
           EOF
