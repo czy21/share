@@ -77,40 +77,70 @@ jobs:
                 fi
               done
             done
-
           fi
+
           PACKAGES="${PACKAGES:-luci-app-attendedsysupgrade}"
+          EXTRA_FEEDS=
+
+          if [ "${{ inputs.packages }}" = 'luci-app-ssr-plus' ];then
+            EXTRA_FEEDS+="src-git|helloworld|https://github.com/fw876/helloworld.git"
+          fi
+
+          if [[ "${{ inputs.packages }}" =~ passwall-packages-* ]];then
+            PACKAGES=$(echo '${{ inputs.packages }}' | sed -e 's|passwall-packages-||')
+            EXTRA_FEEDS+="src-git|passwall_packages|https://github.com/xiaorouji/openwrt-passwall-packages.git"
+          fi
+
+          if [ "${{ inputs.packages }}" = 'luci-app-passwall' ];then
+            EXTRA_FEEDS+="src-git|passwall_packages|https://github.com/xiaorouji/openwrt-passwall-packages.git src-git|passwall|https://github.com/xiaorouji/openwrt-passwall.git"
+          fi
+
+          if [ "${{ inputs.packages }}" = 'luci-app-passwall2' ];then
+            EXTRA_FEEDS+="src-git|passwall_packages|https://github.com/xiaorouji/openwrt-passwall-packages.git src-git|passwall|https://github.com/xiaorouji/openwrt-passwall2.git"
+          fi
 
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
+          echo "EXTRA_FEEDS=$EXTRA_FEEDS" >> $GITHUB_ENV
 
       - name: Build
         uses: openwrt/gh-action-sdk@v9
         env:
           ARCH: ${{ matrix.arch }}-${{ needs.setup.outputs.branch }}
-          FEEDNAME: packages_ci
+          FEEDNAME: plugin
           V: ${{ inputs.debug && 's' || '' }}
 
       - name: Move created packages to project dir
         run: |
           ls -alR bin/packages || true
-          
+
           artifact_dir=bin/artifact/${{ matrix.arch }}/plugin
           mkdir -p ${artifact_dir}
+          find bin/packages/${{ matrix.arch }}/plugin \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
 
-          find bin/packages/${{ matrix.arch }}/packages_ci \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+          if [ "${{ inputs.packages }}" = 'luci-app-ssr-plus' ];then
+            artifact_dir=bin/artifact/${{ matrix.arch }}/helloworld
+            mkdir -p ${artifact_dir}
+            find bin/packages/${{ matrix.arch }}/helloworld \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+          fi
+
+          if [[ "${{ inputs.packages }}" =~ passwall ]]; then
+            artifact_dir=bin/artifact/${{ matrix.arch }}/passwall
+            mkdir -p ${artifact_dir}
+            find bin/packages/${{ matrix.arch }}/passwall_packages bin/packages/${{ matrix.arch }}/passwall \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+          fi
 
       - name: Store packages
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
           name: ${{ matrix.arch }}-packages
           path: bin/artifact/
 
       - name: Store logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
           name: ${{ matrix.arch }}-logs
           path: "logs/"
 
@@ -137,6 +167,8 @@ jobs:
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
         run: |
+          set -e
+          
           mkdir -p ${{ steps.set_env.outputs.download_packages_dir }}
 
           if [ -f setup.sh ];then
@@ -161,7 +193,8 @@ jobs:
         run: |
           ln -snf /data/pri.key key-build
           sed -i -e 's|--sign $(BUILD_KEY_APK_SEC)|--allow-untrusted|' package/Makefile
-          for t in $(find ${{ steps.set_env.outputs.download_packages_dir }} -type d -name 'plugin');do
+
+          for t in $(find ${{ steps.set_env.outputs.download_packages_dir }} -type d -mindepth 2 -maxdepth 2);do
             echo "Generating index for package ${t}"
             make -j4 package/index V=s PACKAGE_SUBDIRS=$t
           done
