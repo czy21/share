@@ -10,11 +10,11 @@ targets = set()
 subtargets = []
 archs = []
 
-# overview_path = pathlib.Path(__file__).joinpath("../../../../overview.json").resolve()
-# profiles_objs = json.loads(overview_path.read_text()).get('profiles') if overview_path.exists() else []
-profiles_objs = []
-packages_path = pathlib.Path(__file__).joinpath("../../../../packages.json").resolve()
-packages_objs = json.loads(packages_path.read_text()) if packages_path.exists() else []
+targets_file = pathlib.Path(__file__).joinpath("../../../../.targets.json").resolve()
+targets_json = json.loads(targets_file.read_text()) if targets_file.exists() else {}
+
+packages_file = pathlib.Path(__file__).joinpath("../../../../.packages.json").resolve()
+packages_objs = json.loads(packages_file.read_text()) if packages_file.exists() else []
 
 archs.extend([p['name'] for p in packages_objs if p['type'] == 'directory'])
 
@@ -22,7 +22,7 @@ config_path = pathlib.Path(__file__).joinpath("../../../../config").resolve()
 global_profiles = config_path.joinpath("profiles.json")
 config_profiles = [json.loads(t.read_text()) for t in filter(lambda t: t != global_profiles,config_path.rglob("**/*profiles.json"))]
 
-profiles_objs = list({t.get('target'): {"target": t.get('target')} for t in profiles_objs}.values())
+profiles_objs = list([{"target": t} for t in targets_json.keys()])
 profiles_objs = profiles_objs if profiles_objs else config_profiles
 
 if args.targets:
@@ -33,8 +33,8 @@ for p in profiles_objs:
     target = profile_target.split("/")[0]
     subtarget = profile_target.split("/")[1]
     targets.add(target)
-    subtargets.append({"target": target, "subtarget": subtarget})
+    subtargets.append({"target": target, "subtarget": subtarget,"generate": any(t.get('target') == p.get('target') for t in config_profiles)})
 
-print("targets={0}".format(json.dumps(list(targets))))
-print("targets_subtargets={0}".format(json.dumps(subtargets)))
+print("targets={0}".format(json.dumps(sorted(targets))))
+print("targets_subtargets={0}".format(json.dumps(sorted(subtargets,key=lambda t: f"{t.get('target')}-{t.get('subtarget')}"))))
 print("archs={0}".format(json.dumps(archs)))

@@ -45,7 +45,7 @@ jobs:
           echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
           echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
 
-          wget https://mirrors.pku.edu.cn/files/openwrt/$artifact_packages_rel/ -O packages.json
+          wget https://mirrors.pku.edu.cn/files/openwrt/$artifact_packages_rel/ -O .packages.json
 
           python3 -B .github/workflows/scripts/openwrt-get_targets.py | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
   

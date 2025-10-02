@@ -83,7 +83,7 @@ jobs:
           if [ -n "$TARGETS" ];then
             TARGETS="-t $TARGETS"
           fi
-
+          wget ${{ inputs.mirror }}/${artifact_release_rel}/.targets.json -O .targets.json
           python3 -B .github/workflows/scripts/openwrt-get_targets.py $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
 
   build:
@@ -175,19 +175,20 @@ jobs:
           sed -i "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" /etc/opkg/distfeeds.conf
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" > /etc/opkg/customfeeds.conf
+          if [ -f "/etc/config/wireless" ];then
+            sed -i -e 's|.*disabled.*||' /etc/config/wireless
+          fi
           EOF
           fi
-        
+
+          sed -i -e '/device_packages/a\\t\"user_packages\": getenv(\"USER_PACKAGES\","").split(),' scripts/json_add_image_info.py
+          make clean
+          find -maxdepth 1 -name 'repositories*' -exec sh -c 'bin_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }};mkdir -p $bin_dir;cp {} $bin_dir;' \;
+
       - name: Generate image
         shell: su buildbot -c "bash {0}"
-        run: |
-          (
-            cd /builder
-            sed -i -e '/device_packages/a\\t\"user_packages\": getenv(\"USER_PACKAGES\","").split(),' scripts/json_add_image_info.py
-            make clean
-            (cd /builder;find -maxdepth 1 -name 'repositories*' -exec sh -c 'bin_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }};mkdir -p $bin_dir;cp {} $bin_dir;' \;)
-          )
-          python3 -B .github/workflows/scripts/openwrt-gen_image.py --openwrt-dir /builder --config config --target ${{ matrix.target }}/${{ matrix.subtarget }}
+        if: ${{ matrix.generate }}
+        run: python3 -B .github/workflows/scripts/openwrt-gen_image.py --openwrt-dir /builder --config config --target ${{ matrix.target }}/${{ matrix.subtarget }}
 
       - name: Generate version
         shell: su buildbot -c "bash {0}"
@@ -202,7 +203,8 @@ jobs:
           wget ${{ inputs.mirror }}/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ steps.set_env.outputs.download_release_dir }}/.overview.json
           wget ${{ inputs.mirror }}/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ steps.set_env.outputs.download_release_dir }}/.targets.json
 
-          python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ steps.set_env.outputs.download_dir }}
+          python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ steps.set_env.outputs.download_dir }} --artifact-rel ${{ needs.setup.outputs.artifact_release_rel }} --artifact-target ${{ matrix.target }}/${{ matrix.subtarget }}
+          (cd /builder;make checksum)
 
   clean:
     name: Clean ${{ matrix.target }}/${{ matrix.subtarget }}
