@@ -128,6 +128,8 @@ jobs:
       - name: Setup
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
+        env: 
+          UPSTREAM_URL: ${{ inputs.mirror }}
         run: |
           set -e
 
@@ -137,33 +139,50 @@ jobs:
 
           tag=${{ needs.setup.outputs.tag }}
 
-          if [ -f setup.sh ];then
-            sed -i "s|^sha256sum -c|#\0|" setup.sh
-            UPSTREAM_URL=${{ inputs.mirror }} bash setup.sh
+          [ ! -d ./scripts ] && sed -i "s|^sha256sum -c|# \0|" setup.sh && ./setup.sh
+
+          id;pwd;ls -al
+          export PATH=$(pwd)/staging_dir/host/bin:$PATH
+          
+          if [ "$tag" = "main" ];then
+            echo
+          else
+            (cd ${{ steps.set_env.outputs.download_targets_dir }}/../;ln -snf ../$(basename ${{ needs.setup.outputs.artifact_packages_rel }}) packages)
           fi
 
-          sed -i 's|^CONFIG_SIGNATURE_CHECK|# \0|' .config
-
-          if [ "$tag" = "main" ];then
-
-            id;pwd;ls -al
+          if grep -q '^CONFIG_USE_APK=y' .config;then
+            sed -i -e 's|$(APK) add|\0 --force-overwrite|' Makefile
 
             openwrt_plugin=$(sed -n -e 's|\(.*\)base\(\.*\)|\1plugin\2|p' repositories | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
-
             sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
-
             cat repositories
-          else
-            id;pwd;ls -al
 
-            (cd ${{ steps.set_env.outputs.download_targets_dir }}/../;ln -snf ../$(basename ${{ needs.setup.outputs.artifact_packages_rel }}) packages)
+            ln -snf /data/apk.key keys/local-private-key.pem
+            ln -snf /data/apk.pub keys/local-public-key.pem
+
+            mkdir -p files/etc/apk/keys
+            cp -rv /data/apk.pub files/etc/apk/keys/openwrt-plugin.pem
+
+            mkdir -p files/etc/uci-defaults/
+            tee files/etc/uci-defaults/99-setup << EOF
+          #!/bin/sh
+          echo "Replacing distfeeds..."
+          sed -i "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" /etc/apk/repositories.d/distfeeds.list
+          echo "Appending customfeeds..."
+          echo "${openwrt_plugin}" > /etc/apk/repositories.d/customfeeds.list
+          if [ -f "/etc/config/wireless" ];then
+            sed -i -e 's|.*disabled.*||' /etc/config/wireless
+          fi
+          EOF
+          else
+            sed -i -e 's|$(OPKG) install $(BUILD_PACKAGES)|\0 --force-overwrite|' Makefile
 
             openwrt_plugin=$(sed -n -e 's|openwrt_base\(.*\)base$|openwrt_plugin\1plugin|p' repositories.conf | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
-
-            sed -i -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" -e "\$a ${openwrt_plugin}" repositories.conf
+            sed -i -e "s|https://downloads.openwrt.org|https://mirrors.hit.edu.cn/openwrt|" -e "\$a ${openwrt_plugin}" repositories.conf
             cat repositories.conf
 
-            export PATH=$(pwd)/staging_dir/host/bin:$PATH
+            ln -snf /data/pri.key key-build
+            ln -snf /data/pub.key key-build.pub
 
             OPKG_KEYS=keys ./scripts/opkg-key add /data/pub.key
             OPKG_KEYS=files/etc/opkg/keys ./scripts/opkg-key add /data/pub.key
@@ -180,10 +199,11 @@ jobs:
           fi
           EOF
           fi
-
+          
           sed -i -e '/device_packages/a\\t\"user_packages\": getenv(\"USER_PACKAGES\","").split(),' scripts/json_add_image_info.py
           make clean
           find -maxdepth 1 -name 'repositories*' -exec sh -c 'bin_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }};mkdir -p $bin_dir;cp {} $bin_dir;' \;
+          cp -rv files/etc/uci-defaults/99-setup ${{ steps.set_env.outputs.download_dir }}/${{ needs.setup.outputs.tag == 'main' && 'snapshots' || 'releases' }}/setup.sh
 
       - name: Generate image
         shell: su buildbot -c "bash {0}"
@@ -216,8 +236,4 @@ jobs:
          include: ${{fromJson(needs.setup.outputs.targets_subtargets)}}
     if: always()
     steps:
-      - run: |
-          volume_names=$(docker volume ls -q | grep 'openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}-${{ github.run_id }}$' || true | xargs )
-          if [ -n "${volume_names}" ];then
-            docker volume rm $volume_names
-          fi
+      - run: docker volume rm openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}-${{ github.run_id }} || true
