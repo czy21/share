@@ -13,10 +13,7 @@ archs = []
 targets_file = pathlib.Path(__file__).joinpath("../../../../.targets.json").resolve()
 targets_json = json.loads(targets_file.read_text()) if targets_file.exists() else {}
 
-packages_file = pathlib.Path(__file__).joinpath("../../../../.packages.json").resolve()
-packages_objs = json.loads(packages_file.read_text()) if packages_file.exists() else []
-
-archs.extend([p['name'] for p in packages_objs if p['type'] == 'directory'])
+archs.extend(list(set(targets_json.values())))
 
 config_path = pathlib.Path(__file__).joinpath("../../../../config").resolve()
 global_profiles = config_path.joinpath("profiles.json")

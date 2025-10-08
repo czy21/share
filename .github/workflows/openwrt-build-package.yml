@@ -19,7 +19,9 @@ jobs:
       archs: ${{ steps.set_env.outputs.archs }}
       branch: ${{ steps.set_env.outputs.branch }}
       branch_number: ${{ steps.set_env.outputs.branch_number }}
-      artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
+      artifact_package_rel: ${{ steps.set_env.outputs.artifact_package_rel }}
+      download_dir: ${{ steps.set_env.outputs.download_dir }}
+      download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -35,18 +37,28 @@ jobs:
           branch="${GITHUB_REF#refs/heads/}"
           branch_number=$(echo $branch | sed 's|openwrt-||')
 
-          artifact_packages_rel=releases/packages-${branch_number}
+          artifact_release_rel=
+          artifact_package_rel=
           
-          if [ "${branch}" == "main" ];then
-            artifact_packages_rel=snapshots/packages
+          if [ "${branch}" = "main" ];then
+            artifact_release_rel=snapshots
+            artifact_package_rel=snapshots/packages
+          else
+            artifact_release_rel=releases/${branch_number}.0
+            artifact_package_rel=releases/packages-${branch_number}
           fi
 
           echo "branch=${branch}" >> "$GITHUB_OUTPUT"
           echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
-          echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
+          echo "artifact_package_rel=${artifact_package_rel}" >> "$GITHUB_OUTPUT"
 
-          wget https://mirrors.pku.edu.cn/files/openwrt/$artifact_packages_rel/ -O .packages.json
+          download_dir=/data/download
+          download_package_dir=${download_dir}/$artifact_package_rel
 
+          echo "download_dir=${download_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_package_dir=${download_package_dir}" >> "$GITHUB_OUTPUT"
+
+          wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
           python3 -B .github/workflows/scripts/openwrt-get_targets.py | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
   
   build:
@@ -105,7 +117,7 @@ jobs:
                 [[ "${{ inputs.packages }}" =~ luci-app-passwall* ]];then
             echo "NO_DEFAULT_FEEDS=y" >> $GITHUB_ENV
             EXTRA_FEEDS+="src-git-full|base|https://github.com/openwrt/openwrt.git;${{ needs.setup.outputs.branch }} "
-            EXTRA_FEEDS+="$(wget -q -O - https://raw.githubusercontent.com/openwrt/openwrt/refs/heads/${{ needs.setup.outputs.branch }}/feeds.conf.default | sed 's|\(packages.git\)\(.*\)|\1|' | tr ' ' '|' | xargs) "
+            EXTRA_FEEDS+="$(wget -q -O - https://raw.githubusercontent.com/openwrt/openwrt/refs/heads/${{ needs.setup.outputs.branch }}/feeds.conf.default | sed -e 's|\(packages.git\)\(.*\)|\1|' -e 's,https://git.openwrt.org/feed/,https://github.com/openwrt/,' -e 's,https://git.openwrt.org/openwrt/,https://github.com/openwrt/,' -e 's,https://git.openwrt.org/project/,https://github.com/openwrt/,' | tr ' ' '|' | xargs) "
           fi
 
           echo "Building $PACKAGES"
@@ -165,13 +177,6 @@ jobs:
         - openwrt-share:/data/
       options: --user root --privileged --pull always
     steps:
-      - name: Set env
-        id: set_env
-        shell: bash
-        run: |
-          download_packages_dir=/data/download/${{ needs.setup.outputs.artifact_packages_rel }}
-          echo "download_packages_dir=${download_packages_dir}" >> "$GITHUB_OUTPUT"
-
       - name: Setup
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
@@ -180,7 +185,7 @@ jobs:
         run: |
           set -e
           
-          mkdir -p ${{ steps.set_env.outputs.download_packages_dir }}
+          mkdir -p ${{ needs.setup.outputs.download_package_dir }}
 
           [ ! -d ./scripts ] && sed -i "s|^sha256sum -c|# \0|" setup.sh && ./setup.sh
 
@@ -189,28 +194,27 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          path: ${{ steps.set_env.outputs.download_packages_dir }}
+          path: ${{ needs.setup.outputs.download_package_dir }}
           pattern: '*-packages'
           merge-multiple: true
 
       - name: Modify permission
-        run: chown -R buildbot:buildbot ${{ steps.set_env.outputs.download_packages_dir }}
+        run: chown -R buildbot:buildbot ${{ needs.setup.outputs.download_package_dir }}
 
       - name: Generate index
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
         run: |
           if grep -q '^CONFIG_USE_APK=y' .config;then
-            sed -i -e 's|--sign $(BUILD_KEY_APK_SEC)|\0 --allow-untrusted|' package/Makefile
             ln -snf /data/apk.key private-key.pem
           else
             ln -snf /data/pri.key key-build
           fi
 
-          find ${{ steps.set_env.outputs.download_packages_dir }} -type d -mindepth 2 -maxdepth 2 -exec sh -c 'f={};echo "Generating index for package $f";make -j4 package/index PACKAGE_SUBDIRS=$f V=s' \;
+          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_SIGNED_PACKAGES= CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
 
           if grep -q '^CONFIG_USE_APK=y' .config;then
-            find ${{ steps.set_env.outputs.download_packages_dir }} -name 'packages.adb' -exec /builder/staging_dir/host/bin/apk adbsign --allow-untrusted --reset-signatures --sign-key /data/apk.key {} \;
+            find ${{ needs.setup.outputs.download_package_dir }} -name 'packages.adb' -exec /builder/staging_dir/host/bin/apk adbsign --allow-untrusted --reset-signatures --sign-key /data/apk.key {} \;
           fi
 
   clean:

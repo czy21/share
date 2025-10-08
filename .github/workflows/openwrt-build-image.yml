@@ -22,8 +22,10 @@ jobs:
       branch: ${{ steps.set_env.outputs.branch }}
       branch_number: ${{ steps.set_env.outputs.branch_number }}
       artifact_release_rel: ${{ steps.set_env.outputs.artifact_release_rel }}
-      artifact_targets_rel: ${{ steps.set_env.outputs.artifact_targets_rel }}
-      artifact_packages_rel: ${{ steps.set_env.outputs.artifact_packages_rel }}
+      artifact_package_rel: ${{ steps.set_env.outputs.artifact_package_rel }}
+      download_dir: ${{ steps.set_env.outputs.download_dir }}
+      download_release_dir: ${{ steps.set_env.outputs.download_release_dir }}
+      download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,20 +43,17 @@ jobs:
           tag=${{ inputs.version }}
 
           artifact_release_rel=
-          artifact_targets_rel=
-          artifact_packages_rel=
+          artifact_package_rel=
           if [ "${branch}" = "main" ];then
             tag=$branch
             artifact_release_rel=snapshots
-            artifact_targets_rel=snapshots/targets
-            artifact_packages_rel=snapshots/packages
+            artifact_package_rel=snapshots/packages
           else
             tag=${tag:-$(curl -sL 'https://git.openwrt.org/?p=openwrt/openwrt.git;a=summary' | sed -n "s|.*OpenWrt \(v${branch_number}.*\) Release.*|\1|p" | head -n 1)}
             tag=$(echo $tag | sed '/^v/! s/^/v/')
             tag_number=$(echo $tag | sed 's|^v||')
             artifact_release_rel=releases/$tag_number
-            artifact_targets_rel=releases/$tag_number/targets
-            artifact_packages_rel=releases/packages-${branch_number}
+            artifact_package_rel=releases/packages-${branch_number}
           fi
 
           echo "branch=${branch}" >> "$GITHUB_OUTPUT"
@@ -63,9 +62,16 @@ jobs:
           echo "tag_number=${tag_number}" >> "$GITHUB_OUTPUT"
 
           echo "artifact_release_rel=${artifact_release_rel}" >> "$GITHUB_OUTPUT"
-          echo "artifact_targets_rel=${artifact_targets_rel}" >> "$GITHUB_OUTPUT"
-          echo "artifact_packages_rel=${artifact_packages_rel}" >> "$GITHUB_OUTPUT"
-          
+          echo "artifact_package_rel=${artifact_package_rel}" >> "$GITHUB_OUTPUT"
+
+          download_dir=/data/download
+          download_release_dir=${download_dir}/$artifact_release_rel
+          download_package_dir=${download_dir}/$artifact_package_rel
+
+          echo "download_dir=${download_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_release_dir=${download_release_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_package_dir=${download_package_dir}" >> "$GITHUB_OUTPUT"
+
           TARGETS="${{ inputs.targets }}"
           if [ "${{ github.event_name }}" = "push" ];then
             IMG_ROOTS=$(find config -name profiles.json -and ! -path config/profiles.json)
@@ -83,7 +89,7 @@ jobs:
           if [ -n "$TARGETS" ];then
             TARGETS="-t $TARGETS"
           fi
-          wget ${{ inputs.mirror }}/${artifact_release_rel}/.targets.json -O .targets.json
+          wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
           python3 -B .github/workflows/scripts/openwrt-get_targets.py $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
 
   build:
@@ -114,16 +120,6 @@ jobs:
         run: |
           mv feeds/share/.github/workflows/scripts .github/workflows/
           python3 -m pip install jinja2 requests
-
-          download_dir=/data/download
-          download_release_dir=${download_dir}/${{ needs.setup.outputs.artifact_release_rel }}
-          download_targets_dir=${download_dir}/${{ needs.setup.outputs.artifact_targets_rel }}
-          download_packages_dir=${download_dir}/${{ needs.setup.outputs.artifact_packages_rel }}
-
-          echo "download_dir=${download_dir}" >> "$GITHUB_OUTPUT"
-          echo "download_release_dir=${download_release_dir}" >> "$GITHUB_OUTPUT"
-          echo "download_targets_dir=${download_targets_dir}" >> "$GITHUB_OUTPUT"
-          echo "download_packages_dir=${download_packages_dir}" >> "$GITHUB_OUTPUT"
           
       - name: Setup
         working-directory: /builder
@@ -133,9 +129,9 @@ jobs:
         run: |
           set -e
 
-          mkdir -p ${{ steps.set_env.outputs.download_targets_dir }} bin
+          mkdir -p ${{ needs.setup.outputs.download_release_dir }}/targets bin
           
-          ln -snf ${{ steps.set_env.outputs.download_targets_dir }} bin/targets
+          ln -snf ${{ needs.setup.outputs.download_release_dir }}/targets bin/targets
 
           tag=${{ needs.setup.outputs.tag }}
 
@@ -147,13 +143,15 @@ jobs:
           if [ "$tag" = "main" ];then
             echo
           else
-            (cd ${{ steps.set_env.outputs.download_targets_dir }}/../;ln -snf ../$(basename ${{ needs.setup.outputs.artifact_packages_rel }}) packages)
+            (cd ${{ needs.setup.outputs.download_release_dir }};ln -snf ../$(basename ${{ needs.setup.outputs.artifact_package_rel }}) packages)
           fi
 
           if grep -q '^CONFIG_USE_APK=y' .config;then
             sed -i -e 's|$(APK) add|\0 --force-overwrite|' Makefile
 
             openwrt_plugin=$(sed -n -e 's|\(.*\)base\(\.*\)|\1plugin\2|p' repositories | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
+            cp -rv repositories repositories.official
+            sed -i -e "1i ${openwrt_plugin}" repositories.official
             sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
             cat repositories
 
@@ -166,8 +164,6 @@ jobs:
             mkdir -p files/etc/uci-defaults/
             tee files/etc/uci-defaults/99-setup << EOF
           #!/bin/sh
-          echo "Replacing distfeeds..."
-          sed -i "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" /etc/apk/repositories.d/distfeeds.list
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" > /etc/apk/repositories.d/customfeeds.list
           if [ -f "/etc/config/wireless" ];then
@@ -178,7 +174,9 @@ jobs:
             sed -i -e 's|$(OPKG) install $(BUILD_PACKAGES)|\0 --force-overwrite|' Makefile
 
             openwrt_plugin=$(sed -n -e 's|openwrt_base\(.*\)base$|openwrt_plugin\1plugin|p' repositories.conf | sed -e "s|https://downloads.openwrt.org|https://openwrt-download.czy21.com|")
-            sed -i -e "s|https://downloads.openwrt.org|https://mirrors.hit.edu.cn/openwrt|" -e "\$a ${openwrt_plugin}" repositories.conf
+            cp -rv repositories.conf repositories.conf.official
+            sed -i -e "\$a ${openwrt_plugin}" repositories.conf.official
+            sed -i -e "\$a ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories.conf
             cat repositories.conf
 
             ln -snf /data/pri.key key-build
@@ -190,8 +188,6 @@ jobs:
             mkdir -p files/etc/uci-defaults/
             tee files/etc/uci-defaults/99-setup << EOF
           #!/bin/sh
-          echo "Replacing distfeeds..."
-          sed -i "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" /etc/opkg/distfeeds.conf
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" > /etc/opkg/customfeeds.conf
           if [ -f "/etc/config/wireless" ];then
@@ -202,8 +198,18 @@ jobs:
           
           sed -i -e '/device_packages/a\\t\"user_packages\": getenv(\"USER_PACKAGES\","").split(),' scripts/json_add_image_info.py
           make clean
-          find -maxdepth 1 -name 'repositories*' -exec sh -c 'bin_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }};mkdir -p $bin_dir;cp {} $bin_dir;' \;
-          cp -rv files/etc/uci-defaults/99-setup ${{ steps.set_env.outputs.download_dir }}/${{ needs.setup.outputs.tag == 'main' && 'snapshots' || 'releases' }}/setup.sh
+          
+          target_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }}
+          mkdir -p $target_dir
+
+          if grep -q '^CONFIG_USE_APK=y' .config;then
+            cp -rv repositories.official $target_dir/repositories
+            cp -rv repositories $target_dir/repositories.mirror
+          else
+            cp -rv repositories.conf.official $target_dir/repositories.conf
+            cp -rv repositories.conf $target_dir/repositories.conf.mirror
+          fi
+          cp -rv files/etc/uci-defaults/99-setup $target_dir/setup.sh
 
       - name: Generate image
         shell: su buildbot -c "bash {0}"
@@ -214,16 +220,16 @@ jobs:
         shell: su buildbot -c "bash {0}"
         if: always()
         run: |
-          wget https://downloads.openwrt.org/index.html -O ${{ steps.set_env.outputs.download_dir }}/index.html
+          wget https://downloads.openwrt.org/index.html -O ${{ needs.setup.outputs.download_dir }}/index.html
 
-          for t in $(ls ${{ steps.set_env.outputs.download_dir }}/releases/ | grep "^[0-9]");do
-            sed -i -e "s|//archive.openwrt.org/\(releases/${t}\)|\1|" ${{ steps.set_env.outputs.download_dir }}/index.html
+          for t in $(ls ${{ needs.setup.outputs.download_dir }}/releases/ | grep "^[0-9]");do
+            sed -i -e "s|//archive.openwrt.org/\(releases/${t}\)|\1|" ${{ needs.setup.outputs.download_dir }}/index.html
           done
           
-          wget ${{ inputs.mirror }}/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ steps.set_env.outputs.download_release_dir }}/.overview.json
-          wget ${{ inputs.mirror }}/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ steps.set_env.outputs.download_release_dir }}/.targets.json
+          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ needs.setup.outputs.download_release_dir }}/.overview.json
+          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ needs.setup.outputs.download_release_dir }}/.targets.json
 
-          python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ steps.set_env.outputs.download_dir }} --artifact-rel ${{ needs.setup.outputs.artifact_release_rel }} --artifact-target ${{ matrix.target }}/${{ matrix.subtarget }}
+          python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ needs.setup.outputs.download_dir }} --artifact-rel ${{ needs.setup.outputs.artifact_release_rel }} --artifact-target ${{ matrix.target }}/${{ matrix.subtarget }}
           (cd /builder;make checksum)
 
   clean:
