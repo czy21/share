@@ -202,13 +202,6 @@ jobs:
           target_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }}
           mkdir -p $target_dir
 
-          if grep -q '^CONFIG_USE_APK=y' .config;then
-            cp -rv repositories.official $target_dir/repositories
-            cp -rv repositories $target_dir/repositories.mirror
-          else
-            cp -rv repositories.conf.official $target_dir/repositories.conf
-            cp -rv repositories.conf $target_dir/repositories.conf.mirror
-          fi
           cp -rv files/etc/uci-defaults/99-setup $target_dir/setup.sh
 
       - name: Generate image
