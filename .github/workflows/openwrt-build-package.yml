@@ -211,7 +211,7 @@ jobs:
             ln -snf /data/pri.key key-build
           fi
 
-          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_SIGNED_PACKAGES= CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
+          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
 
           if grep -q '^CONFIG_USE_APK=y' .config;then
             find ${{ needs.setup.outputs.download_package_dir }} -name 'packages.adb' -exec /builder/staging_dir/host/bin/apk adbsign --allow-untrusted --reset-signatures --sign-key /data/apk.key {} \;
