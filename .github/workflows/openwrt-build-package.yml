@@ -33,11 +33,10 @@ jobs:
       - name: Set env
         id: set_env
         run: |
+          wget https://downloads.openwrt.org/.versions.json -O .versions.json
           mv feeds/share/.github/workflows/scripts .github/workflows/
           branch="${GITHUB_REF#refs/heads/}"
           branch_number=$(echo $branch | sed 's|openwrt-||')
-
-          wget https://downloads.openwrt.org/.versions.json -O .versions.json
 
           artifact_release_rel=
           artifact_package_rel=
