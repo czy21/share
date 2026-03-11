@@ -27,10 +27,10 @@ jobs:
       download_release_dir: ${{ steps.set_env.outputs.download_release_dir }}
       download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: czy21/share
           path: feeds/share
@@ -109,10 +109,10 @@ jobs:
         - openwrt-share:/data/
       options: --user root --privileged --pull always
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: czy21/share
           path: feeds/share
