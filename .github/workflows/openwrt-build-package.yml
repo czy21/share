@@ -170,7 +170,7 @@ jobs:
     name: Deploy
     runs-on: self-hosted
     needs: [setup,build]
-    if: always()
+    if: always() && !cancelled()
     container:
       image: openwrt/sdk:x86-64-${{ needs.setup.outputs.branch }}
       volumes:
