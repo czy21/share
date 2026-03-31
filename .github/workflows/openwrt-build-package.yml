@@ -125,7 +125,7 @@ jobs:
           echo "EXTRA_FEEDS=$EXTRA_FEEDS" >> $GITHUB_ENV
 
       - name: Build
-        uses: openwrt/gh-action-sdk@v9
+        uses: openwrt/gh-action-sdk@v10
         env:
           ARCH: ${{ matrix.arch }}-${{ needs.setup.outputs.branch }}
           FEEDNAME: plugin
@@ -153,14 +153,14 @@ jobs:
 
       - name: Store packages
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.arch }}-packages
           path: bin/artifact/
 
       - name: Store logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.arch }}-logs
           path: "logs/"
@@ -192,7 +192,7 @@ jobs:
           make defconfig
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ needs.setup.outputs.download_package_dir }}
           pattern: '*-packages'
