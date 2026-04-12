@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           mv feeds/share/.github/workflows/scripts .github/workflows/
-          python3 -m pip install jinja2 requests
+          python3 -m pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple jinja2 requests
           
       - name: Setup
         working-directory: /builder
