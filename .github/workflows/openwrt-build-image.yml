@@ -199,7 +199,6 @@ jobs:
           fi
           
           sed -i -e '/device_packages/a\\t\"user_packages\": getenv(\"USER_PACKAGES\","").split(),' scripts/json_add_image_info.py
-          make clean
           
           target_dir=bin/targets/${{ matrix.target }}/${{ matrix.subtarget }}
           mkdir -p $target_dir
