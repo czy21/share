@@ -19,6 +19,7 @@ jobs:
       archs: ${{ steps.set_env.outputs.archs }}
       branch: ${{ steps.set_env.outputs.branch }}
       branch_number: ${{ steps.set_env.outputs.branch_number }}
+      artifact_release_rel: ${{ steps.set_env.outputs.artifact_release_rel }}
       artifact_package_rel: ${{ steps.set_env.outputs.artifact_package_rel }}
       download_dir: ${{ steps.set_env.outputs.download_dir }}
       download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
@@ -50,6 +51,7 @@ jobs:
 
           echo "branch=${branch}" >> "$GITHUB_OUTPUT"
           echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
+          echo "artifact_release_rel=${artifact_release_rel}" >> "$GITHUB_OUTPUT"
           echo "artifact_package_rel=${artifact_package_rel}" >> "$GITHUB_OUTPUT"
 
           download_dir=/data/download
@@ -169,7 +171,7 @@ jobs:
     needs: [setup,build]
     if: always() && !cancelled()
     container:
-      image: openwrt/sdk:x86-64-${{ needs.setup.outputs.branch }}
+      image: openwrt/sdk:x86-64-main
       volumes:
         - openwrt-sdk-x86-64-${{ needs.setup.outputs.branch }}-${{ github.run_id }}:/builder
         - openwrt-share:/data/
@@ -180,6 +182,7 @@ jobs:
         shell: su buildbot -c "bash {0}"
         env: 
           UPSTREAM_URL: ${{ inputs.mirror }}
+          VERSION_PATH: ${{ needs.setup.outputs.artifact_release_rel }}
         run: |
           set -e
           
@@ -203,17 +206,10 @@ jobs:
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
         run: |
-          if grep -q '^CONFIG_USE_APK=y' .config;then
-            ln -snf /data/apk.key private-key.pem
-          else
-            ln -snf /data/pri.key key-build
-          fi
+          ln -snf /data/apk.key private-key.pem
+          ln -snf /data/pri.key key-build
 
-          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
-
-          if grep -q '^CONFIG_USE_APK=y' .config;then
-            find ${{ needs.setup.outputs.download_package_dir }} -name 'packages.adb' -exec /builder/staging_dir/host/bin/apk adbsign --allow-untrusted --reset-signatures --sign-key /data/apk.key {} \;
-          fi
+          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_SIGNED_PACKAGES=y CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
 
   clean:
     name: Clean
