@@ -37,7 +37,7 @@ jobs:
       - name: Set env
         id: set_env
         run: |
-          wget ${{inputs.mirror}}/.versions.json -O .versions.json
+          wget https://downloads.openwrt.org/.versions.json -O .versions.json
           mv feeds/share/.github/workflows/scripts .github/workflows/
           branch="${GITHUB_REF#refs/heads/}"
           branch_number=$(echo $branch | sed 's|openwrt-||')
@@ -91,7 +91,7 @@ jobs:
           if [ -n "$TARGETS" ];then
             TARGETS="-t $TARGETS"
           fi
-          wget ${{inputs.mirror}}/${artifact_release_rel}/.targets.json -O .targets.json
+          wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
           python3 -B .github/workflows/scripts/openwrt-get_targets.py $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
 
   build:
@@ -222,14 +222,14 @@ jobs:
         shell: su buildbot -c "bash {0}"
         if: always()
         run: |
-          wget ${{inputs.mirror}}/index.html -O ${{ needs.setup.outputs.download_dir }}/index.html
+          wget https://downloads.openwrt.org/index.html -O ${{ needs.setup.outputs.download_dir }}/index.html
 
           for t in $(ls ${{ needs.setup.outputs.download_dir }}/releases/ | grep "^[0-9]");do
             sed -i -e "s|//archive.openwrt.org/\(releases/${t}\)|\1|" ${{ needs.setup.outputs.download_dir }}/index.html
           done
           
-          wget ${{inputs.mirror}}/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ needs.setup.outputs.download_release_dir }}/.overview.json
-          wget ${{inputs.mirror}}/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ needs.setup.outputs.download_release_dir }}/.targets.json
+          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ needs.setup.outputs.download_release_dir }}/.overview.json
+          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ needs.setup.outputs.download_release_dir }}/.targets.json
 
           python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ needs.setup.outputs.download_dir }} --artifact-rel ${{ needs.setup.outputs.artifact_release_rel }} --artifact-target ${{ matrix.target }}/${{ matrix.subtarget }}
           (cd /builder;make checksum)
