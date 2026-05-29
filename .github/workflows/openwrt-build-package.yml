@@ -106,7 +106,7 @@ jobs:
           fi
 
           if [[ "${{ inputs.packages }}" == *luci-app-passwall* ]]; then
-            EXTRA_FEEDS+="src-git|passwall_packages|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git src-git|passwall|https://github.com/Openwrt-Passwall/openwrt-passwall.git src-git|passwall2|https://github.com/Openwrt-Passwall/openwrt-passwall2.git"
+            EXTRA_FEEDS+="src-git|passwall_packages|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git src-git|passwall|https://github.com/Openwrt-Passwall/openwrt-passwall.git src-git|passwall2|https://github.com/Openwrt-Passwall/openwrt-passwall2.git "
           fi
 
           if [[ "${{ needs.setup.outputs.branch }}" =~ openwrt-* ]] && \

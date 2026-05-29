@@ -159,8 +159,7 @@ jobs:
             sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
             cat repositories
 
-            ln -snf /data/apk.key keys/local-private-key.pem
-            ln -snf /data/apk.pub keys/local-public-key.pem
+            cp -rv /data/apk.pub keys/
 
             mkdir -p files/etc/apk/keys
             cp -rv /data/apk.pub files/etc/apk/keys/openwrt-plugin.pem
@@ -170,9 +169,7 @@ jobs:
           #!/bin/sh
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" > /etc/apk/repositories.d/customfeeds.list
-          if [ -f "/etc/config/wireless" ];then
-            sed -i -e 's|.*disabled.*||' /etc/config/wireless
-          fi
+          sed -i -e 's|.*disabled.*||' /etc/config/wireless || true
           EOF
           else
             sed -i -e 's|$(OPKG) install $(BUILD_PACKAGES)|\0 --force-overwrite|' Makefile
