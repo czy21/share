@@ -19,11 +19,12 @@ config_path = pathlib.Path(__file__).joinpath("../../../../config").resolve()
 global_profiles = config_path.joinpath("profiles.json")
 config_profiles = [json.loads(t.read_text()) for t in filter(lambda t: t != global_profiles,config_path.rglob("**/*profiles.json"))]
 
-profiles_objs = list([{"target": t} for t in targets_json.keys()])
-profiles_objs = profiles_objs if profiles_objs else config_profiles
+profiles_objs = config_profiles
 
 if args.targets:
-    profiles_objs = list(filter(lambda t: t.get('target') in args.targets,profiles_objs))
+    profiles_objs = [{"target": t} for t in targets_json.keys()] or config_profiles
+    if 'all' not in args.targets:
+        profiles_objs = [p for p in profiles_objs if p.get('target') in args.targets]
 
 for p in profiles_objs:
     profile_target = p.get("target")

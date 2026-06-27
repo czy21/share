@@ -61,7 +61,7 @@ jobs:
           echo "download_package_dir=${download_package_dir}" >> "$GITHUB_OUTPUT"
 
           wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
-          python3 -B .github/workflows/scripts/openwrt-get_targets.py | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
+          python3 -B .github/workflows/scripts/openwrt-get_targets.py -t all | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
   
   build:
     name: Build ${{ matrix.arch }}
@@ -209,7 +209,7 @@ jobs:
           ln -snf /data/apk.key private-key.pem
           ln -snf /data/pri.key key-build
 
-          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_SIGNED_PACKAGES=y CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f V=s' \;
+          find ${{ needs.setup.outputs.download_package_dir }} -mindepth 2 -maxdepth 2 -type d -exec sh -c 'f={};a=$(basename $(dirname $f));echo "Generating index for package $f";make -j6 package/index CONFIG_SIGNED_PACKAGES=y CONFIG_TARGET_ARCH_PACKAGES=$a PACKAGE_SUBDIRS=$f' \;
 
   clean:
     name: Clean
