@@ -193,9 +193,7 @@ jobs:
           #!/bin/sh
           echo "Appending customfeeds..."
           echo "${openwrt_plugin}" > /etc/opkg/customfeeds.conf
-          if [ -f "/etc/config/wireless" ];then
-            sed -i -e 's|.*disabled.*||' /etc/config/wireless
-          fi
+          sed -i -e 's|.*disabled.*||' /etc/config/wireless || true
           EOF
           fi
           
