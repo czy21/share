@@ -9,6 +9,9 @@ on:
         type: string
       targets:
         type: string
+      custom: 
+        type: boolean
+        default: false
 
 jobs:
   setup:
@@ -27,18 +30,18 @@ jobs:
       download_release_dir: ${{ steps.set_env.outputs.download_release_dir }}
       download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: czy21/share
           path: feeds/share
       - name: Set env
         id: set_env
         run: |
-          wget https://downloads.openwrt.org/.versions.json -O .versions.json
           mv feeds/share/.github/workflows/scripts .github/workflows/
+          wget https://downloads.openwrt.org/.versions.json -O .versions.json
           branch="${GITHUB_REF#refs/heads/}"
           branch_number=$(echo $branch | sed 's|openwrt-||')
 
@@ -92,7 +95,7 @@ jobs:
             TARGETS="-t $TARGETS"
           fi
           wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
-          python3 -B .github/workflows/scripts/openwrt-get_targets.py $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
+          python3 -B .github/workflows/scripts/openwrt-get_targets.py ${{ inputs.custom && '-o target' || '' }} $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
 
   build:
     name: Build ${{ matrix.target }}/${{ matrix.subtarget }}
@@ -107,12 +110,12 @@ jobs:
       volumes:
         - openwrt-ib-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}-${{ github.run_id }}:/builder
         - openwrt-share:/data/
-      options: --user root --privileged --pull always
+      options: --user root --privileged --pid=host
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: czy21/share
           path: feeds/share
@@ -122,24 +125,24 @@ jobs:
         run: |
           mv feeds/share/.github/workflows/scripts .github/workflows/
           python3 -m pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple jinja2 requests
-          
+          chown -R buildbot:buildbot .
+
       - name: Setup
         working-directory: /builder
         shell: su buildbot -c "bash {0}"
         env: 
-          UPSTREAM_URL: ${{ inputs.mirror }}
+          UPSTREAM_URL: ${{ inputs.custom && 'https://openwrt-download.czy21.com' || inputs.mirror }}
           VERSION_PATH: ${{needs.setup.outputs.artifact_release_rel}}
           TARGET: ${{ matrix.target }}/${{ matrix.subtarget }}
         run: |
           set -e
 
           mkdir -p ${{ needs.setup.outputs.download_release_dir }}/targets bin
-          
           ln -snf ${{ needs.setup.outputs.download_release_dir }}/targets bin/targets
 
           tag=${{ needs.setup.outputs.tag }}
 
-          sed -i "s|^sha256sum -c|#\0|" setup.sh && ./setup.sh
+          sed -i -e '/^wget.*sha256sums.asc/d' -e '/^gpg.*/d' -e '/^sha256sum -c.*/d' setup.sh && ./setup.sh
 
           id;pwd;ls -al
           export PATH=$(pwd)/staging_dir/host/bin:$PATH
@@ -150,15 +153,15 @@ jobs:
             (cd ${{ needs.setup.outputs.download_release_dir }};ln -snf ../$(basename ${{ needs.setup.outputs.artifact_package_rel }}) packages)
           fi
 
-          package_dir=$(echo "$VERSION_PATH" | awk -F'[/.]' '$1=="releases" {print "releases/""packages-"$2"."$3; next} {print "snapshots/""packages"}')
+          arch_packages=$(TOPDIR="$PWD" make --no-print-directory -C target/linux/ val.ARCH_PACKAGES)
+
+          openwrt_plugin="https://openwrt-download.czy21.com/${{ needs.setup.outputs.artifact_package_rel }}/${arch_packages}/plugin"
 
           if grep -q '^CONFIG_USE_APK=y' .config;then
-            sed -i -e 's|$(APK) add|\0 --force-overwrite|' Makefile
-
-            openwrt_plugin=$(sed -n -e 's|\(.*\)base\(\.*\)|\1plugin\2|p' repositories | sed -e "s|https://downloads.openwrt.org/$VERSION_PATH/packages|https://openwrt-download.czy21.com/$package_dir|")
+            openwrt_plugin="${openwrt_plugin}/packages.adb"
             cp -rv repositories repositories.official
-            sed -i -e "1i ${openwrt_plugin}" repositories.official
-            sed -i -e "1i ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
+            sed -i -e "\$a ${openwrt_plugin}" repositories.official
+            sed -i -e "\$a ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories
             cat repositories
 
             cp -rv /data/apk.pub keys/
@@ -174,9 +177,7 @@ jobs:
           sed -i -e 's|.*disabled.*||' /etc/config/wireless || true
           EOF
           else
-            sed -i -e 's|$(OPKG) install $(BUILD_PACKAGES)|\0 --force-overwrite|' Makefile
-
-            openwrt_plugin=$(sed -n -e 's|openwrt_base\(.*\)base$|openwrt_plugin\1plugin|p' repositories.conf | sed -e "s|https://downloads.openwrt.org/$VERSION_PATH/packages|https://openwrt-download.czy21.com/$package_dir|")
+            openwrt_plugin="src/gz openwrt_plugin ${openwrt_plugin}"
             cp -rv repositories.conf repositories.conf.official
             sed -i -e "\$a ${openwrt_plugin}" repositories.conf.official
             sed -i -e "\$a ${openwrt_plugin}" -e "s|https://downloads.openwrt.org|${{ inputs.mirror }}|" repositories.conf
@@ -213,7 +214,7 @@ jobs:
       - name: Generate image
         shell: su buildbot -c "bash {0}"
         if: ${{ matrix.generate }}
-        run: python3 -B .github/workflows/scripts/openwrt-gen_image.py --openwrt-dir /builder --config config --target ${{ matrix.target }}/${{ matrix.subtarget }}
+        run: python3 -B .github/workflows/scripts/openwrt-gen_image.py --openwrt-dir /builder --config config --target ${{ matrix.target }}/${{ matrix.subtarget }} ${{ inputs.custom && '--custom' || '' }}
 
       - name: Generate version
         shell: su buildbot -c "bash {0}"
@@ -226,12 +227,17 @@ jobs:
           for t in $(ls ${{ needs.setup.outputs.download_dir }}/releases/ | grep "^[0-9]");do
             sed -i -e "s|//archive.openwrt.org/\(releases/${t}\)|\1|" ${{ needs.setup.outputs.download_dir }}/index.html
           done
-          
-          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O ${{ needs.setup.outputs.download_release_dir }}/.overview.json
-          wget https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O ${{ needs.setup.outputs.download_release_dir }}/.targets.json
+
+          wget -nv https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.overview.json -O .overview.json
+          wget -nv https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/.targets.json -O .targets.json
+          wget -nv https://downloads.openwrt.org/${{ needs.setup.outputs.artifact_release_rel }}/targets/${{ matrix.target }}/${{ matrix.subtarget }}/profiles.json -O profiles.json
 
           python3 -B .github/workflows/scripts/openwrt-gen_version.py --artifact-dir ${{ needs.setup.outputs.download_dir }} --artifact-rel ${{ needs.setup.outputs.artifact_release_rel }} --artifact-target ${{ matrix.target }}/${{ matrix.subtarget }}
-          (cd /builder;make checksum)
+
+      - name: Checksums
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: make -j1 checksum V=s
 
   clean:
     name: Clean ${{ matrix.target }}/${{ matrix.subtarget }}

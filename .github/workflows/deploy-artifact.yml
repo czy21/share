@@ -1,0 +1,25 @@
+on:
+  workflow_call:
+    inputs:
+      name:
+        type: string
+        default: github-pages
+      path:
+        type: string
+        required: true
+jobs:
+  deploy-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.name }}
+      - run: |
+          if [ "${{ inputs.path }}" = "/" ]; then
+              echo "Invalid path"
+              exit 1
+          fi
+          install -d -m 700 /home/runner/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > /home/runner/.ssh/id-rsa
+          chmod 600 /home/runner/.ssh/id-rsa
+          ssh -o StrictHostKeyChecking=no -i /home/runner/.ssh/id-rsa opsor@${{ secrets.SSH_HOST }} "rm -rf ${{ inputs.path }} && mkdir -p ${{ inputs.path }} && tar -xvf - -C ${{ inputs.path }}" < artifact.tar

@@ -1,0 +1,162 @@
+name: Build and push containers
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+      targets:
+        type: string
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.set_env.outputs.targets }}
+      targets_subtargets: ${{ steps.set_env.outputs.targets_subtargets }}
+      tag: ${{ steps.set_env.outputs.tag }}
+      tag_number: ${{ steps.set_env.outputs.tag_number }}
+      branch: ${{ steps.set_env.outputs.branch }}
+      branch_number: ${{ steps.set_env.outputs.branch_number }}
+      artifact_release_rel: ${{ steps.set_env.outputs.artifact_release_rel }}
+      artifact_package_rel: ${{ steps.set_env.outputs.artifact_package_rel }}
+      download_dir: ${{ steps.set_env.outputs.download_dir }}
+      download_release_dir: ${{ steps.set_env.outputs.download_release_dir }}
+      download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
+      file_host: ${{ steps.set_env.outputs.file_host }}
+      run_setup: ${{ steps.set_env.outputs.run_setup }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          repository: czy21/share
+          path: feeds/share
+      - name: Set env
+        id: set_env
+        run: |
+          mv feeds/share/.github/workflows/scripts .github/workflows/
+          wget https://downloads.openwrt.org/.versions.json -O .versions.json
+          branch="${GITHUB_REF#refs/heads/}"
+          branch_number=$(echo $branch | sed 's|openwrt-||')
+
+          tag=${{ inputs.version }}
+
+          artifact_release_rel=
+          artifact_package_rel=
+          if [ "${branch}" = "main" ];then
+            tag=$branch
+            artifact_release_rel=snapshots
+            artifact_package_rel=snapshots/packages
+          else
+            tag=${tag:-$(python3 -B .github/workflows/scripts/openwrt-get_version.py -b ${branch_number})}
+            tag=$(echo $tag | sed '/^v/! s/^/v/')
+            tag_number=$(echo $tag | sed 's|^v||')
+            artifact_release_rel=releases/$tag_number
+            artifact_package_rel=releases/packages-${branch_number}
+          fi
+
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "tag_number=${tag_number}" >> "$GITHUB_OUTPUT"
+
+          echo "artifact_release_rel=${artifact_release_rel}" >> "$GITHUB_OUTPUT"
+          echo "artifact_package_rel=${artifact_package_rel}" >> "$GITHUB_OUTPUT"
+
+          download_dir=/data/download
+          download_release_dir=${download_dir}/$artifact_release_rel
+          download_package_dir=${download_dir}/$artifact_package_rel
+
+          echo "download_dir=${download_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_release_dir=${download_release_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_package_dir=${download_package_dir}" >> "$GITHUB_OUTPUT"
+
+          echo "file_host=openwrt-download.czy21.com" >> "$GITHUB_OUTPUT"
+          echo "run_setup=1" >> "$GITHUB_OUTPUT"
+
+          TARGETS="${{ inputs.targets }}"
+          if [ "${{ github.event_name }}" = "push" ];then
+            IMG_ROOTS=$(find config -name profiles.json -and ! -path config/profiles.json)
+            CHANGES=$(git diff --diff-filter=d --name-only HEAD~)
+            for ROOT in $IMG_ROOTS; do
+              for CHANGE in $CHANGES; do
+                if [[ "$CHANGE" = "$ROOT"* ]]; then
+                  TARGETS+=$(echo "$ROOT" | sed -e 's|config/\(.*\)/profiles.json|\1 |')
+                  break
+                fi
+              done
+            done
+          fi
+          echo "Building $TARGETS"
+          if [ -n "$TARGETS" ];then
+            TARGETS="-t $TARGETS"
+          fi
+          wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
+          python3 -B .github/workflows/scripts/openwrt-get_targets.py -o target $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
+
+  push-imagebuilder-container:
+    name: Build ${{ matrix.target }}/${{ matrix.subtarget }}
+    needs: setup
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.setup.outputs.targets_subtargets)}}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          repository: czy21/share
+          path: feeds/share
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.czy21.com/openwrt/imagebuilder
+          flavor: |
+            latest=false
+          tags: |
+            ${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag }}
+            ${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.tag_number }}
+            ${{ matrix.target }}-${{ matrix.subtarget }},enable=${{ needs.setup.outputs.tag == 'main' }}
+            latest,enable=${{ needs.setup.outputs.tag == 'main' && matrix.target == 'x86-64'}}
+
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          no-cache: true
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          context: feeds/share/openwrt
+          build-args: |
+            DOWNLOAD_FILE=imagebuilder-.*x86_64.tar.[xz|zst]
+            VERSION_PATH=${{ needs.setup.outputs.artifact_release_rel }}
+            TARGET=${{ matrix.target }}/${{ matrix.subtarget }}
+            FILE_HOST=${{ needs.setup.outputs.file_host }}
+            RUN_SETUP=${{ needs.setup.outputs.run_setup }}
+
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          no-cache: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          context: feeds/share/openwrt
+          build-args: |
+            DOWNLOAD_FILE=imagebuilder-.*x86_64.tar.[xz|zst]
+            VERSION_PATH=${{ needs.setup.outputs.artifact_release_rel }}
+            TARGET=${{ matrix.target }}/${{ matrix.subtarget }}
+            FILE_HOST=${{ needs.setup.outputs.file_host }}
+            RUN_SETUP=${{ needs.setup.outputs.run_setup }}
+
+      - name: Cleanup Docker containers
+        run: docker system prune -f
