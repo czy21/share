@@ -2,26 +2,86 @@ import argparse
 import json
 import pathlib
 
-def generate_profile(release_dir,release_target):
-    
-    overview_file = release_dir.joinpath(".overview.json")
-    overview_json = json.loads(overview_file.read_text()) if overview_file.exists() else {}
-    targets_file = release_dir.joinpath(".targets.json")
-    targets_json = json.loads(targets_file.read_text()) if targets_file.exists() else {}
+def generate_profile(release_dir, release_target):
 
-    profile_file = release_dir.joinpath('targets').joinpath(release_target).joinpath('profiles.json')
-    profile_json = json.loads(profile_file.read_text()) if profile_file.exists() else {}
-    profile_json["arch_packages"] = targets_json[release_target]
-    profile_json["default_packages"] = profile_json.get('default_packages',[])
-    profile_json["profiles"] = profile_json.get("profiles",{})
+    upstream_overview_file = pathlib.Path(".overview.json")
+    upstream_overview_json = json.loads(upstream_overview_file.read_text()) if upstream_overview_file.exists() else {}
 
-    for t in filter(lambda t: t.get('target') == release_target, overview_json.get('profiles')):
-        profile_json.get('profiles')[t.get('id')] = profile_json.get('profiles').get(t.get('id'), { "device_packages": [], "images": [], "titles": t.get('titles') })
-    profile_json["target"] = release_target
-    profile_json['version_number'] = overview_json['release']
+    upstream_targets_file = pathlib.Path(".targets.json")
+    upstream_targets_json = json.loads(upstream_targets_file.read_text()) if upstream_targets_file.exists() else {}
 
-    profile_file.parent.mkdir(parents=True, exist_ok=True)
-    profile_file.write_text(json.dumps(profile_json))
+    upstream_profiles_file = pathlib.Path("profiles.json")
+    upstream_profiles_json = json.loads(upstream_profiles_file.read_text()) if upstream_profiles_file.exists() else {}
+
+    release_overview_file = release_dir / ".overview.json"
+    release_overview_json = json.loads(release_overview_file.read_text()) if release_overview_file.exists() else upstream_overview_json
+
+    release_targets_file = release_dir / ".targets.json"
+    release_targets_json = json.loads(release_targets_file.read_text()) if release_targets_file.exists() else upstream_targets_json
+
+    release_profile_file = release_dir / "targets" / release_target / "profiles.json"
+    release_profile_json = json.loads(release_profile_file.read_text()) if release_profile_file.exists() else upstream_profiles_json
+
+    profiles = {
+        device_id: {
+            key: value
+            for key, value in profile.items()
+            if not key.startswith("image")
+        }
+        for device_id, profile in upstream_profiles_json.get("profiles", {}).items()
+    }
+
+    for device_id, profile in release_profile_json.get("profiles", {}).items():
+        upstream_profile = profiles.get(device_id)
+        profile["device_packages"] = (profile.get("device_packages") or (upstream_profile or {}).get("device_packages") or [])
+        if not upstream_profile:
+            profile['custom'] = True
+        profiles[device_id] = profile
+
+    release_profile_json["target"] = release_target
+    release_profile_json["version_number"] = release_overview_json["release"]
+    release_profile_json["arch_packages"] = release_targets_json[release_target]
+    release_profile_json["default_packages"] = release_profile_json.get("default_packages", [])
+    release_profile_json["profiles"] = profiles
+
+    overview_profiles = {
+        (profile.get("target"), profile.get("id")): profile
+        for profile in upstream_overview_json.get("profiles", [])
+        if profile.get("target") and profile.get("id")
+    }
+
+    overview_profiles.update(
+        {
+            (profile.get("target"), profile.get("id")): profile
+            for profile in release_overview_json.get("profiles", [])
+            if profile.get("target") and profile.get("id")
+        }
+    )
+
+    for device_id, profile in profiles.items():
+        key = (release_target, device_id)
+
+        if key not in overview_profiles:
+            overview_profiles[key] = {
+                "id": device_id,
+                "titles": profile.get("titles"),
+                "target": release_target,
+            }
+
+    merged_overview_json = {
+        **upstream_overview_json,
+        **release_overview_json,
+    }
+
+    merged_overview_json["profiles"] = list(overview_profiles.values())
+
+    release_profile_file.write_text(
+        json.dumps(release_profile_json, sort_keys=True)
+    )
+
+    release_overview_file.write_text(
+        json.dumps(merged_overview_json, sort_keys=True)
+    )
 
 if __name__ == '__main__':
 
