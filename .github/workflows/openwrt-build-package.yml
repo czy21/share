@@ -24,10 +24,10 @@ jobs:
       download_dir: ${{ steps.set_env.outputs.download_dir }}
       download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: czy21/share
           path: feeds/share
@@ -72,7 +72,7 @@ jobs:
        matrix:
          arch: ${{fromJson(needs.setup.outputs.archs)}}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Determine packages
@@ -128,27 +128,27 @@ jobs:
         uses: openwrt/gh-action-sdk@v10
         env:
           ARCH: ${{ matrix.arch }}-${{ needs.setup.outputs.branch }}
-          FEEDNAME: plugin
+          FEEDNAME: packages_ci
           V: ${{ inputs.debug && 's' || '' }}
 
       - name: Move created packages to project dir
         run: |
-          ls -alR bin/packages || true
-
           artifact_dir=bin/artifact/${{ matrix.arch }}/plugin
           mkdir -p ${artifact_dir}
-          find bin/packages/${{ matrix.arch }}/plugin \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+          rsync -av --remove-source-files --include=*.ipk --include=*.apk --exclude=* bin/packages/${{ matrix.arch }}/packages_ci/ ${artifact_dir} || true
 
           if [ "${{ inputs.packages }}" = 'luci-app-ssr-plus' ];then
             artifact_dir=bin/artifact/${{ matrix.arch }}/helloworld
             mkdir -p ${artifact_dir}
-            find bin/packages/${{ matrix.arch }}/helloworld \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+            rsync -av --remove-source-files --include=*.ipk --include=*.apk --exclude=* bin/packages/${{ matrix.arch }}/helloworld/ ${artifact_dir} || true
           fi
 
           if [[ "${{ inputs.packages }}" =~ passwall ]]; then
             artifact_dir=bin/artifact/${{ matrix.arch }}/passwall
             mkdir -p ${artifact_dir}
-            find bin/packages/${{ matrix.arch }}/passwall_packages bin/packages/${{ matrix.arch }}/passwall bin/packages/${{ matrix.arch }}/passwall2 \( -name "*.ipk" -o -name "*.apk" \) -exec cp -rv {} ${artifact_dir} \; || true
+            for d in passwall_packages passwall passwall2;do
+              rsync -av --remove-source-files --include=*.ipk --include=*.apk --exclude=* bin/packages/${{ matrix.arch }}/$d/ ${artifact_dir} || true
+            done
           fi
 
       - name: Store packages
@@ -159,7 +159,7 @@ jobs:
           path: bin/artifact/
 
       - name: Store logs
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.arch }}-logs
@@ -199,7 +199,7 @@ jobs:
           pattern: '*-packages'
           merge-multiple: true
 
-      - name: Modify permission
+      - name: Fix permission
         run: chown -R buildbot:buildbot ${{ needs.setup.outputs.download_package_dir }}
 
       - name: Generate index
