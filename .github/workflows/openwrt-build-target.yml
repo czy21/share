@@ -1,0 +1,394 @@
+name: Build targets
+
+on:
+  workflow_call:
+    inputs:
+      container: 
+        type: string
+        # ghcr.io/openwrt/tools
+        default: openwrt/tools
+      origin:
+        type: string
+        default: https://gitea.czy21.com:8443
+      mirror:
+        type: string
+        default: https://downloads.openwrt.org
+      version:
+        type: string
+      targets:
+        type: string
+      buildbot:
+        type: boolean
+        default: false
+      ccache_from:
+        type: string
+        # https://s3-ccache.openwrt-ci.ansuel.com
+        default: https://openwrt-dlc.czy21.com/openwrt-ci/s3-ccache
+      ccache_type:
+        type: string
+        default: kernel
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.set_env.outputs.targets }}
+      targets_subtargets: ${{ steps.set_env.outputs.targets_subtargets }}
+      tag: ${{ steps.set_env.outputs.tag }}
+      tag_number: ${{ steps.set_env.outputs.tag_number }}
+      branch: ${{ steps.set_env.outputs.branch }}
+      branch_number: ${{ steps.set_env.outputs.branch_number }}
+      artifact_release_rel: ${{ steps.set_env.outputs.artifact_release_rel }}
+      artifact_package_rel: ${{ steps.set_env.outputs.artifact_package_rel }}
+      download_dir: ${{ steps.set_env.outputs.download_dir }}
+      download_release_dir: ${{ steps.set_env.outputs.download_release_dir }}
+      download_package_dir: ${{ steps.set_env.outputs.download_package_dir }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          repository: czy21/share
+          path: feeds/share
+      - name: Set env
+        id: set_env
+        run: |
+          wget https://downloads.openwrt.org/.versions.json -O .versions.json
+          mv feeds/share/.github/workflows/scripts .github/workflows/
+          branch="${GITHUB_REF#refs/heads/}"
+          branch_number=$(echo $branch | sed 's|openwrt-||')
+
+          tag=${{ inputs.version }}
+
+          artifact_release_rel=
+          artifact_package_rel=
+          if [ "${branch}" = "main" ];then
+            tag=$branch
+            artifact_release_rel=snapshots
+            artifact_package_rel=snapshots/packages
+          else
+            tag=${tag:-$(python3 -B .github/workflows/scripts/openwrt-get_version.py -b ${branch_number})}
+            tag=$(echo $tag | sed '/^v/! s/^/v/')
+            tag_number=$(echo $tag | sed 's|^v||')
+            artifact_release_rel=releases/$tag_number
+            artifact_package_rel=releases/packages-${branch_number}
+          fi
+
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "branch_number=${branch_number}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "tag_number=${tag_number}" >> "$GITHUB_OUTPUT"
+
+          echo "artifact_release_rel=${artifact_release_rel}" >> "$GITHUB_OUTPUT"
+          echo "artifact_package_rel=${artifact_package_rel}" >> "$GITHUB_OUTPUT"
+
+          download_dir=/data/download
+          download_release_dir=${download_dir}/$artifact_release_rel
+          download_package_dir=${download_dir}/$artifact_package_rel
+
+          echo "download_dir=${download_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_release_dir=${download_release_dir}" >> "$GITHUB_OUTPUT"
+          echo "download_package_dir=${download_package_dir}" >> "$GITHUB_OUTPUT"
+
+          TARGETS="${{ inputs.targets }}"
+          echo "Building $TARGETS"
+          if [ -n "$TARGETS" ];then
+            TARGETS="-t $TARGETS"
+          fi
+          wget https://downloads.openwrt.org/${artifact_release_rel}/.targets.json -O .targets.json
+          python3 -B .github/workflows/scripts/openwrt-get_targets.py -o target $TARGETS | while read v;do echo "$v" >> "$GITHUB_OUTPUT"; done
+
+  build:
+    name: Build ${{ matrix.target }}/${{ matrix.subtarget }}
+    needs: setup
+    runs-on: self-hosted
+    strategy:
+       fail-fast: false
+       matrix:
+         include: ${{fromJson(needs.setup.outputs.targets_subtargets)}}
+    container:
+      image: ${{ inputs.container }}:${{ needs.setup.outputs.branch != 'main' && needs.setup.outputs.branch || 'latest' }}
+      volumes:
+        - openwrt-target-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.branch }}-${{ github.run_id }}:/builder
+        - openwrt-share:/data/
+      options: --privileged --pid=host
+    steps:
+      - uses: actions/checkout@v7
+      - name: Checkout upstream
+        run: |
+          (cd /builder;find . -mindepth 1 -maxdepth 1 -exec rm -rfv {} +)
+          git config --global --add safe.directory /builder
+          git clone --depth=1 -b ${{ needs.setup.outputs.tag }} ${{ inputs.origin }}/openwrt/openwrt /builder
+
+      - name: Determine ccache tag
+        id: determine_ccache_tag
+        if: needs.setup.outputs.branch != 'main'
+        run: echo "ccache_tag=${{ format('-{0}', needs.setup.outputs.branch) }}" >> $GITHUB_OUTPUT
+
+      - name: Determine ccache name
+        id: determine_ccache_name
+        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ matrix.target }}-${{ matrix.subtarget }}${{ steps.determine_ccache_tag.outputs.ccache_tag }}" >> $GITHUB_OUTPUT
+
+      - name: Parse toolchain path
+        working-directory: /builder
+        run: |
+          TOOLCHAIN_PATH=${{needs.setup.outputs.artifact_release_rel}}
+          SUMS_FILE="${{ inputs.mirror }}/$TOOLCHAIN_PATH/targets/${{ matrix.target }}/${{ matrix.subtarget }}/sha256sums"
+          echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "SUMS_FILE=$SUMS_FILE" >> "$GITHUB_ENV"
+
+      - name: Parse toolchain file
+        id: parse-toolchain
+        run: |
+
+          TOOLCHAIN_STRING="$( curl ${{ env.SUMS_FILE }} | grep -P ".*openwrt-toolchain.*tar.(xz|zst)")"
+          TOOLCHAIN_FILE=$(echo "$TOOLCHAIN_STRING" | sed -n -E -e 's/.*(openwrt-toolchain.*.tar.(xz|zst))$/\1/p')
+
+          echo "TOOLCHAIN_FILE=$TOOLCHAIN_FILE" >> "$GITHUB_ENV"
+          echo "TOOLCHAIN_NAME=$(echo $TOOLCHAIN_FILE | sed -E -e 's/.tar.(xz|zst)$//')" >> "$GITHUB_ENV"
+
+      - name: Prase prebuilt llvm file
+        id: parse-prebuilt-llvm
+        run: |
+          LLVM_STRING="$( curl ${{ env.SUMS_FILE }} | grep -P ".*llvm-bpf.*tar.(xz|zst)")"
+          LLVM_FILE=$(echo "$LLVM_STRING" | sed -n -E -e 's/.*(llvm-bpf.*.tar.(xz|zst))$/\1/p')
+          echo "LLVM_FILE=$LLVM_FILE" >> "$GITHUB_ENV"
+
+      - name: Download and extract ccache cache from s3
+        id: restore-ccache-cache-s3
+        working-directory: /builder
+        run: |
+          S3_LINK=${{ inputs.ccache_from }}
+          CCACHE_TAR=${{ steps.determine_ccache_name.outputs.ccache_name }}.tar
+          wget -nv -O - $S3_LINK/$CCACHE_TAR | tar -xf -
+
+      - name: Fix permission
+        run: |
+          chown -R buildbot:buildbot /builder
+
+      - name: Prepare build key
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          ln -snf /data/apk.key private-key.pem
+          ln -snf /data/pri.key key-build
+
+      - name: Prepare prebuilt tools
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          mkdir -p staging_dir build_dir
+          ln -s /prebuilt_tools/staging_dir/host staging_dir/host
+          ln -s /prebuilt_tools/build_dir/host build_dir/host
+
+          ./scripts/ext-tools.sh --refresh
+
+      - name: Update & Install feeds
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          cat feeds.conf.default
+          [ -f "feeds.conf.default.bak" ] || cp -rv feeds.conf.default feeds.conf.default.bak
+          sed -e 's|https://git.openwrt.org/\(.*\)/|${{ inputs.origin }}/openwrt/|g' \
+              -e 's|https://github.com/openwrt/|${{ inputs.origin }}/openwrt/|g' feeds.conf.default.bak > feeds.conf.default
+
+          cat feeds.conf.default
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Clean configuration
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: rm -rf .config
+
+      - name: Configure target
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: |
+          cat >> .config << EOF
+          CONFIG_TARGET_${{ matrix.target }}=y
+          CONFIG_TARGET_${{ matrix.target }}_${{ matrix.subtarget }}=y
+          CONFIG_TARGET_MULTI_PROFILE=y
+          EOF
+
+          find ${GITHUB_WORKSPACE}/target/linux/${{ matrix.target }}/${{ matrix.subtarget }} -type f -name '*.device.patch' -print0 | sort -z | while IFS= read -r -d '' t;do
+            echo $t
+            f=$(basename $t)
+            d=${f%%.*}
+            echo "CONFIG_TARGET_DEVICE_${{ matrix.target }}_${{ matrix.subtarget }}_DEVICE_${d}=y" >> .config
+          done
+
+          cat >> .config << EOF
+          CONFIG_ALL_KMODS=y
+          CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+          CONFIG_DEVEL=y
+          CONFIG_AUTOREMOVE=y
+          CONFIG_LOCALMIRROR="https://openwrt-dlc.czy21.com/sources"
+          # CONFIG_KERNEL_KALLSYMS is not set
+          EOF
+
+          cat >> .config << EOF
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-app-attendedsysupgrade=y
+          EOF
+
+          if [[ "${{ needs.setup.outputs.branch }}" =~ ^openwrt- ]]; then
+            cat >> .config << EOF
+          CONFIG_IMAGEOPT=y
+          CONFIG_VERSIONOPT=y
+          EOF
+          fi
+
+      - name: Patch target
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          function apply_device_patch(){
+            patch_dir=$1
+            (
+              cd ${GITHUB_WORKSPACE}
+              rsync -avmR --exclude='*.device.patch' $patch_dir /builder
+            )
+            find ${GITHUB_WORKSPACE}/$patch_dir -type f -name '*.device.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "patch -d './' --no-backup-if-mismatch -p1 -F 1 -i '%'"
+          }
+
+          apply_device_patch package/
+          apply_device_patch target/linux/
+
+          git status
+
+      - name: Download external toolchain/sdk
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          wget -nv ${{ inputs.mirror }}/${{ env.TOOLCHAIN_PATH }}/targets/${{ matrix.target }}/${{ matrix.subtarget }}/${{ env.TOOLCHAIN_FILE }}
+          tar -xf ${{ env.TOOLCHAIN_FILE }}
+          rm -f ${{ env.TOOLCHAIN_FILE }}
+
+      - name: Download and extract prebuilt llvm
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          wget -nv ${{ inputs.mirror }}/${{ env.TOOLCHAIN_PATH }}/targets/${{ matrix.target }}/${{ matrix.subtarget }}/${{ env.LLVM_FILE }}
+          tar -xf ${{ env.LLVM_FILE }}
+          rm -f ${{ env.LLVM_FILE }}
+
+      - name: Export ccache environment
+        run: |
+          echo "CCACHE_DIR=/builder/.ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_CONFIGPATH2=/builder/staging_dir/host/etc/ccache.conf" >> "$GITHUB_ENV"
+
+        # ccache for some reason have problem detecting compiler type
+        # with external toolchain. This cause the complete malfunction
+        # of ccache with the result of tons of unsupported compiler
+        # option error.
+        # To fix this force compiler type to gcc.
+      - name: Configure ccache and apply fixes
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          touch $CCACHE_CONFIGPATH2
+
+          echo compiler_type=gcc >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=1G >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'packages' ] && echo max_size=8G >> $CCACHE_CONFIGPATH2
+
+          echo depend_mode=true >> $CCACHE_CONFIGPATH2
+          echo sloppiness=file_macro,locale,time_macros,include_file_ctime,include_file_mtime >> $CCACHE_CONFIGPATH2
+
+          echo CONFIG_CCACHE=y >> .config
+
+      - name: Reset ccache stats
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: staging_dir/host/bin/ccache --zero-stats
+
+      - name: Configure external toolchain
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          ./scripts/ext-toolchain.sh \
+            --toolchain ${{ env.TOOLCHAIN_NAME }}/toolchain-* \
+            --overwrite-config \
+            --config ${{ matrix.target }}/${{ matrix.subtarget }}
+
+      - name: Configure prebuilt llvm
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          echo CONFIG_USE_LLVM_PREBUILT=y >> .config
+
+      - name: Show configuration
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: |
+          make defconfig
+          ./scripts/diffconfig.sh
+          
+      - name: Build tools
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: make tools/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build toolchain
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: make toolchain/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build target/compile
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: |
+          make CONFIG_BUILDBOT=y target/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+          echo '===== kernelversion ====='
+          TOPDIR="$PWD" make --no-print-directory -C target/linux/ val.LINUX_VERSION val.LINUX_RELEASE val.LINUX_VERMAGIC | xargs printf '%s-%s-%s\n'
+
+      - name: Build package
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: make CONFIG_BUILDBOT=y package/{compile,install} -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build target/install
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: make CONFIG_BUILDBOT=y target/imagebuilder/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Generating buildinfo
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: make -j1 buildinfo V=s || true
+
+      - name: Show ccache stats
+        shell: su buildbot -c "bash {0}"
+        working-directory: /builder
+        run: staging_dir/host/bin/ccache -vv --show-stats
+
+      - name: Move created targets to project dir
+        working-directory: /builder
+        shell: su buildbot -c "bash {0}"
+        run: |
+          ls -alR bin/targets || true
+          (
+            cd bin
+            rsync -avmR \
+              --include='*/' \
+              --include='*.buildinfo' \
+              --include="*${{ matrix.target }}-${{ matrix.subtarget }}*" \
+              --exclude='*' \
+              targets/${{ matrix.target }}/${{ matrix.subtarget }} ${{ needs.setup.outputs.download_release_dir }}
+          )
+          make BIN_DIR=${{ needs.setup.outputs.download_release_dir }}/targets/${{ matrix.target }}/${{ matrix.subtarget }} checksum
+
+  clean:
+    name: Clean ${{ matrix.target }}/${{ matrix.subtarget }}
+    runs-on: self-hosted
+    needs: [setup,build]
+    strategy:
+       fail-fast: false
+       matrix:
+         include: ${{fromJson(needs.setup.outputs.targets_subtargets)}}
+    if: always()
+    steps:
+      - run: docker volume rm openwrt-target-${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.setup.outputs.branch }}-${{ github.run_id }} || true

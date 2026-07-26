@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--openwrt-dir', required=True, help="openwrt workspace")
     parser.add_argument('--config', required=True, help='config directory')
     parser.add_argument('--target', required=True, help='target directory')
+    parser.add_argument('--custom', action="store_true")
     args: argparse.Namespace = parser.parse_args()
 
     config_path = pathlib.Path(args.config)
@@ -25,6 +26,10 @@ if __name__ == '__main__':
         exit(0)
     profiles_obj = json.load(open(target_profiles_file, 'r'))
     profiles = profiles_obj['profiles']
+    profiles = {
+        k: v for k, v in profiles.items()
+        if v.get('custom',False) == args.custom
+    }
 
     for pk, pv in profiles.items():
         cmd_arr = [
